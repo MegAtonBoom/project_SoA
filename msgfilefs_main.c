@@ -81,17 +81,17 @@ int main(int argc, char *argv[])
 		close(fd);
 		return -1;
 	}
-
+	bd = calloc(1, sizeof(data_block));
 	printf("File inode written succesfully.\n");
 
     INITIALIZE(bd)
 
-
-
     for(int i=2; i<size; i++){
-
+		printf("prova1");
+		fflush(stdout);
         bd->bm.offset=i;
 		printf("Now offset is %d\n", i);
+		fflush(stdout);
         ret = write(fd, (char *)bd, sizeof(data_block));
         if (ret != DEFAULT_BLOCK_SIZE) {
 			printf("The file block numer %d was not written properly.\n", i);
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 			return -1;
 	    }   
     }
-	
+	free(bd);
     printf("File datablock has been written succesfully.\n");
 	
 
