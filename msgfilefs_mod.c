@@ -200,24 +200,33 @@ static void msgfs_kill_superblock(struct super_block *sb) {
 
     struct block_order_node *curr=NULL, *prev = NULL;
     struct priv_info *pi = (struct priv_info *)sb->s_fs_info;
+    bool empty_list = true;
 
     
-    /*
+    TESTING(printk("UNMOUNT\n"));
     list_for_each_entry_rcu(curr, &(pi->bm_list), bm_list){
         if(!prev){
+            empty_list = false;
+            TESTING(printk("FIRST ELEM: frkeeping track of %lu\n", curr));
             prev = curr;
         }
         else{
+            TESTING(printk("NOW FREEING %lu, next elem: %lu\n", prev, curr));
             kfree(prev);
             prev = curr;
         }
         
     }
-    kfree(curr);   
-    kfree(sb->s_fs_info);*/
+    //no elem in list
+    if(!empty_list){
+        TESTING(printk("LIST IS NOT EMPTY SO:DELETING LAST ITEM AT %lu\n", prev));
+        kfree(prev);
+    }
+    TESTING(printk("NOW FREEING S_FS_INFO AT %lu",sb->s_fs_info));
+    kfree(sb->s_fs_info);
     
     if(unlikely(!__sync_bool_compare_and_swap(&mounted, true, false))){
-        printk("Error in mount val management");
+        printk("Error in mount val management\n");
     }
 
     kill_block_super(sb);
