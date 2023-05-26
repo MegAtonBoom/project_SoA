@@ -1,1 +1,2 @@
-# project_SoA
+SoA (Advanced operatyng systems) project
+README still work in progress....
