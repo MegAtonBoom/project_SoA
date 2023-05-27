@@ -69,8 +69,8 @@ int main(int argc, char *argv[])
 	printf("Super block written succesfully\n");
 
 	// write file inode
-	//file_inode.mode = S_IFREG;
-	file_inode.inode_no = SINGLEFILEFS_FILE_INODE_NUMBER;
+	file_inode.mode = S_IFREG;
+	file_inode.inode_no = MSGFS_FILE_INODE_NUMBER;
 	file_inode.file_size = size - 2;
 	printf("File size is %ld\n",file_inode.file_size);
 	fflush(stdout);

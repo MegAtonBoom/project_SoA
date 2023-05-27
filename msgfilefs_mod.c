@@ -16,11 +16,11 @@
 
 
 
-static struct super_operations singlefilefs_super_ops = {
+static struct super_operations msgfilefs_super_ops = {
 };
 
 
-static struct dentry_operations singlefilefs_dentry_ops = {
+static struct dentry_operations msgfilefs_dentry_ops = {
 };
 
 
@@ -38,7 +38,7 @@ module_param(the_syscall_table, ulong, 0660);
 
 unsigned long the_ni_syscall;
 
-unsigned long new_sys_call_array[] = {0x0, 0x0, 0x0};//please set to sys_put_work at startup
+unsigned long new_sys_call_array[] = {0x0, 0x0, 0x0};
 int restore[HACKED_ENTRIES] = {[0 ... (HACKED_ENTRIES-1)] -1};
 
 
@@ -158,7 +158,8 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     }
     
 
-    sb->s_op = &singlefilefs_super_ops;//set our own operations
+    sb->s_op = &msgfilefs_super_ops;//set our own operations
+    
     the_sb=sb;
 
     root_inode = iget_locked(sb, 0);//get a root inode indexed with 0 from cache
@@ -166,12 +167,12 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
         return -ENOMEM;
     }
 
-    root_inode->i_ino = SINGLEFILEFS_ROOT_INODE_NUMBER;//this is actually 10
+    root_inode->i_ino = MSGFS_ROOT_INODE_NUMBER;//this is actually 10
     //5.12
     inode_init_owner(&init_user_ns, root_inode, NULL, S_IFDIR);//set the root user as owned of the FS root
     root_inode->i_sb = sb;
     root_inode->i_op = &msgfilefs_inode_ops;//set our inode operations
-    root_inode->i_fop = &msgfilefs_file_operations;
+    root_inode->i_fop = &msgfilefs_dir_operations;
     //root_inode->i_fop = &onefilefs_dir_operations;//set our file operations
     //update access permission
     root_inode->i_mode = S_IFDIR | S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IXUSR | S_IXGRP | S_IXOTH;
@@ -187,7 +188,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     if (!sb->s_root)
         return -ENOMEM;
 
-    sb->s_root->d_op = &singlefilefs_dentry_ops;//set our dentry operations
+    sb->s_root->d_op = &msgfilefs_dentry_ops;//set our dentry operations
 
     //unlock the inode to make it usable
     unlock_new_inode(root_inode);
@@ -278,10 +279,10 @@ static int msgfilefs_init(void) {
     //register filesystem
     ret = register_filesystem(&onefilefs_type);
     if (likely(ret == 0)){
-        printk("%s: sucessfully registered singlefilefs\n",MODNAME);
+        printk("%s: sucessfully registered msgfilefs\n",MODNAME);
     }
     else{
-        printk("%s: failed to register singlefilefs - error %d", MODNAME,ret);
+        printk("%s: failed to register msgfilefs - error %d", MODNAME,ret);
     }
     
     return 0;

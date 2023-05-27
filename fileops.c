@@ -183,8 +183,10 @@ int msgfilesfs_open(struct inode *inode, struct file *file) {
     struct priv_info *pi= sb->s_fs_info;
     struct inode * the_inode = file->f_inode;
     uint64_t file_size = the_inode->i_size;
-    unsigned long *tstamp = (unsigned long *)kzalloc(sizeof(unsigned long), GFP_KERNEL);
+    unsigned long *tstamp;
     struct block_order_node *first = NULL;
+
+    tstamp = (unsigned long *)kzalloc(sizeof(unsigned long), GFP_KERNEL);
     if(!tstamp){
         //TESTING(printk("Error allocating memory"));
         return -1;
@@ -266,7 +268,7 @@ struct dentry *msgfilefs_lookup(struct inode *parent_inode, struct dentry *child
 	set_nlink(the_inode,1);
 
 	//now we retrieve the file size via the FS specific inode, putting it into the generic inode
-    	bh = (struct buffer_head *)sb_bread(sb, SINGLEFILEFS_INODES_BLOCK_NUMBER );
+    	bh = (struct buffer_head *)sb_bread(sb, MSGFS_INODES_BLOCK_NUMBER);
     	if(!bh){
 		iput(the_inode);
 		return ERR_PTR(-EIO);
