@@ -18,7 +18,7 @@
 #define SB_BLOCK_NUMBER 0
 #define DEFAULT_FILE_INODE_BLOCK 1
 
-#define FILENAME_MAXLEN 255
+#define FILENAME_MAXLEN 8
 
 #define MSGFS_ROOT_INODE_NUMBER 10
 #define MSGFS_FILE_INODE_NUMBER 1
@@ -120,8 +120,6 @@ extern const struct file_operations msgfilefs_dir_operations;
 //the (unique) superblock to be referenced by the module system calls
 extern struct super_block *the_sb;
 
-//to semplify we assume the device can be mounted only once a time
-extern bool single_mount;
 
 //functions that modifies syscall table entries with the new ones
 extern int hack_syscall_table(void);

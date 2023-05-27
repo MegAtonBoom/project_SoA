@@ -30,11 +30,8 @@ int main(int argc, char *argv[])
 
 
 
-	char *block_padding;
-	char *file_body = "Wathever content you would like.\n";//this is the default content of the unique file 
-
 	if (argc != 2) {
-		printf("Usage: mkfs-singlefilefs <device>\n");
+
 		return -1;
 	}
 
@@ -82,11 +79,11 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 	bd = calloc(1, sizeof(data_block));
-	printf("File inode written succesfully.\n");
-	/*
+	printf("File inode written succesfully, size %ld.\n", sizeof(file_inode));
+	
     INITIALIZE(bd)
 
-    for(int i=2; i<size-1; i++){
+    for(int i=2; i<size; i++){
 		printf("prova1");
 		fflush(stdout);
         bd->bm.offset=i;
@@ -100,36 +97,12 @@ int main(int argc, char *argv[])
 			return -1;
 	    }   
     }
-	*/
+	
 	free(bd);
-    printf("File datablock has been written succesfully.\n");
+    printf("File datablock has been written succesfully, each size: %ld.\n", sizeof(data_block));
 	
 
-    /*stuff copied
-	//padding for block 1
-	nbytes = DEFAULT_BLOCK_SIZE - sizeof(file_inode);
-	block_padding = malloc(nbytes);
-
-	ret = write(fd, block_padding, nbytes);
-
-	if (ret != nbytes) {
-		printf("The padding bytes are not written properly. Retry your mkfs\n");
-		close(fd);
-		return -1;
-	}
-	printf("Padding in the inode block written sucessfully.\n");
-
-	//write file datablock
-	nbytes = strlen(file_body);
-	ret = write(fd, file_body, nbytes);
-	if (ret != nbytes) {
-		printf("Writing file datablock has failed.\n");
-		close(fd);
-		return -1;
-	}
-	printf("File datablock has been written succesfully.\n");
-
-    */
+    
 
 	close(fd);
 

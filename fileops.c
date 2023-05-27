@@ -122,16 +122,6 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
             //
             //TESTING(printk("We read all we had to read; current output will be %s\n", out));
             ret = copy_to_user(buf, out, len);
-            /*
-            actual_block = list_next_or_null_rcu(&(pi->bm_list), &(actual_block->bm_list), struct block_order_node, bm_list);
-            if(!actual_block){ 
-                //TESTING(printk("By keeping to read we reached the end of the file- updatin offset outside of boundaries for next read\n")); 
-                *off = file_size + 1;
-            }
-            else{
-                *off = ((actual_block->bm.offset * DEFAULT_BLOCK_SIZE) + sizeof(block_metadata));
-                *(time64_t *)(filp->private_data) = actual_block->bm.tstamp_last;
-            }*/
             *off += blen-1;
             //TESTING(printk("Finished: with new offset next red will be at %lld\n", (*off - sizeof(block_metadata)) % DEFAULT_BLOCK_SIZE));
             *(unsigned long *)(filp->private_data) = actual_block->bm.tstamp_last;
@@ -171,6 +161,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
     }
     //TESTING(printk("There is a sever bug if this point has been reached\n"));
+    
     return 0;        
 }
 
@@ -178,7 +169,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
 //nothing special, only some initialization
 int msgfilesfs_open(struct inode *inode, struct file *file) {
-
+    
     struct super_block *sb = file->f_path.dentry->d_inode->i_sb;
     struct priv_info *pi= sb->s_fs_info;
     struct inode * the_inode = file->f_inode;
@@ -208,18 +199,6 @@ int msgfilesfs_open(struct inode *inode, struct file *file) {
         file->f_pos=file_size + 1;
         //TESTING(printk("offset2 is %lld\n", file->f_pos));
     }
-
-    //skipping the read for the first 2 blocks (superblock and inode)
-    
-    //__sync_fetch_and_add(file->f_count, (atomic_long_t)1);
-
-
-// this device file is single instance
-   /*if (!mutex_trylock(&device_state)) {
-		return -EBUSY;
-   }*/
-   //TESTING(printk("%s: device file successfully opened by thread %d\n",MODNAME,current->pid));
-//device opened by a default nop
    return 0;
 }
 
@@ -227,10 +206,6 @@ int msgfilesfs_open(struct inode *inode, struct file *file) {
 int msgfilefs_release(struct inode *inode, struct file *file) {
     kfree(file->private_data);
     file->private_data = NULL;
-   //mutex_unlock(&device_state);
-
-   //TESTING(printk("%s: device file closed by thread %d\n",MODNAME,current->pid));
-   //device closed by default nop
    return 0;
 
 }
@@ -262,7 +237,7 @@ struct dentry *msgfilefs_lookup(struct inode *parent_inode, struct dentry *child
 	//this work is done if the inode was not already cached
 	inode_init_owner(&init_user_ns, the_inode, NULL, S_IFREG );
 	the_inode->i_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IXUSR | S_IXGRP | S_IXOTH;
-        the_inode->i_fop = &msgfilefs_dir_operations;
+    the_inode->i_fop = &msgfilefs_dir_operations;
 	the_inode->i_op = &msgfilefs_inode_ops;
 
 	//just one link for this file
@@ -301,5 +276,4 @@ const struct file_operations msgfilefs_file_operations = {
     .read = msgfilefs_read,
     .open = msgfilesfs_open,
     .release = msgfilefs_release
-    //.write = onefilefs_write //please implement this function to complete the exercise
 };

@@ -54,7 +54,6 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     struct block_order_node * block=NULL, * prev=NULL, * curr=NULL;
     struct msgfs_inode *my_inode;
     data_block *db;
-    bool first = true;
     int i, j;
     
 
@@ -79,8 +78,9 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     /*if(sb_disk->nblocks>MAXBLOCKS){
         return -EPERM;
     }*/
+
     pi=(struct priv_info *)kzalloc(sizeof(struct priv_info), GFP_KERNEL);
-    if(pi==NULL){
+    if(!pi){
         printk(KERN_INFO "%s: Error allocating memory\n",MODNAME);
         return -ENOMEM;
     }
@@ -130,14 +130,14 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     //unlock the inode to make it usable
     unlock_new_inode(root_inode);
 
-
+    
     bh = sb_bread(sb, 1);
     if(!bh){
             return -EIO;
     }
     
     my_inode = (struct msgfs_inode *)bh->b_data;
-    if(my_inode->file_size>MAXBLOCKS){
+    if(my_inode->file_size>MAXBLOCKS-2){
         brelse(bh);
         return -EPERM;
     }
@@ -167,7 +167,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
         //TESTING(printk("The block is valid! offset: %d, valid: %d\n", db->bm.offset, db->bm.invalid));
         
         block = (struct block_order_node *)kzalloc(sizeof(struct block_order_node), GFP_KERNEL);
-        if(block==NULL){
+        if(!block){
             //TESTING(printk(KERN_INFO "%s: Error allocating memory\n",MODNAME));
             return -ENOMEM;
         }
@@ -264,7 +264,7 @@ struct dentry *msgfs_mount(struct file_system_type *fs_type, int flags, const ch
 }
 
 //file system structure
-static struct file_system_type onefilefs_type = {
+static struct file_system_type msgfilefs_type = {
 	.owner = THIS_MODULE,
     .name           = "msgfilefs",
     .mount          = msgfs_mount,
@@ -280,16 +280,16 @@ static int msgfilefs_init(void) {
     mounted = false;
     
         
-    
-
-    //register filesystem
-    ret = register_filesystem(&onefilefs_type);
-    if (likely(ret == 0)){
-        printk("%s: sucessfully registered msgfilefs\n",MODNAME);
-        if(unlikely(hack_syscall_table()!=0)){
+    if(unlikely(hack_syscall_table()!=0)){
         printk("Error in syscall table hacking");
         return -1;
-        }
+    }
+
+    //register filesystem
+    ret = register_filesystem(&msgfilefs_type);
+    if (likely(ret == 0)){
+        printk("%s: sucessfully registered msgfilefs\n",MODNAME);
+        
     }
     else{
         printk("%s: failed to register msgfilefs - error %d", MODNAME,ret);
@@ -304,7 +304,7 @@ static void msgfilefs_exit(void) {
     unhack_syscall_table();
     
     //unregister filesystem
-    ret = unregister_filesystem(&onefilefs_type);
+    ret = unregister_filesystem(&msgfilefs_type);
 
     if (likely(ret == 0))
         printk("%s: sucessfully unregistered file system driver\n",MODNAME);
