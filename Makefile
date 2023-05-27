@@ -1,6 +1,6 @@
 obj-m += msgfilefs.o
 #obj-m += singlefilefs.o
-msgfilefs-objs += msgfilefs_mod.o fileops.o dirops.o lib/scth.o syscalls.o bitmask_handler.o
+msgfilefs-objs += msgfilefs_src.o fileops.o dirops.o lib/scth.o syscalls.o bitmask_handler.o
 EXTRA_CFLAGS:= -D MAXBLOCKS=20 -D SYNCHRONIZE 
 
 A = $(shell cat /sys/module/the_usctm/parameters/sys_call_table_address)

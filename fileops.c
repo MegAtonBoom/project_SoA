@@ -225,7 +225,8 @@ int msgfilesfs_open(struct inode *inode, struct file *file) {
 
 //release: only unlocking the mutex since we can open only once the file
 int msgfilefs_release(struct inode *inode, struct file *file) {
-
+    kfree(file->private_data);
+    file->private_data = NULL;
    //mutex_unlock(&device_state);
 
    //TESTING(printk("%s: device file closed by thread %d\n",MODNAME,current->pid));
@@ -242,7 +243,7 @@ struct dentry *msgfilefs_lookup(struct inode *parent_inode, struct dentry *child
     struct buffer_head *bh = NULL;
     struct inode *the_inode = NULL;
 
-    //TESTING(printk("%s: running the lookup inode-function for name %s",MODNAME,child_dentry->d_name.name));
+   //TESTING(printk("%s: running the lookup inode-function for name %s",MODNAME,child_dentry->d_name.name));
 
     if(!strcmp(child_dentry->d_name.name, MSG_FILE_NAME)){
 
@@ -261,7 +262,7 @@ struct dentry *msgfilefs_lookup(struct inode *parent_inode, struct dentry *child
 	//this work is done if the inode was not already cached
 	inode_init_owner(&init_user_ns, the_inode, NULL, S_IFREG );
 	the_inode->i_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IXUSR | S_IXGRP | S_IXOTH;
-        the_inode->i_fop = &msgfilefs_file_operations;
+        the_inode->i_fop = &msgfilefs_dir_operations;
 	the_inode->i_op = &msgfilefs_inode_ops;
 
 	//just one link for this file

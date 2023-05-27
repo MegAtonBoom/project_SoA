@@ -14,11 +14,12 @@
 static int onefilefs_iterate(struct file *file, struct dir_context* ctx) {
 
     //	printk("%s: we are inside readdir with ctx->pos set to %lld", MODNAME, ctx->pos);
-	
+	TESTING(printk("DIR TEST 0"));
 	if(ctx->pos >= (2 + 1)) return 0;//we cannot return more than . and .. and the unique file entry
 
 	if (ctx->pos == 0){
  //   		printk("%s: we are inside readdir with ctx->pos set to %lld", MODNAME, ctx->pos);
+		TESTING(printk("DIR TEST 1"));
 		if(!dir_emit(ctx,".", FILENAME_MAXLEN, MSGFS_ROOT_INODE_NUMBER, DT_UNKNOWN)){
 			return 0;
 		}
@@ -29,6 +30,7 @@ static int onefilefs_iterate(struct file *file, struct dir_context* ctx) {
 	}
 
 	if (ctx->pos == 1){
+		TESTING(printk("DIR TEST 2"));
   //  		printk("%s: we are inside readdir with ctx->pos set to %lld", MODNAME, ctx->pos);
 		//here the inode number does not care
 		if(!dir_emit(ctx,"..", FILENAME_MAXLEN, 1, DT_UNKNOWN)){
@@ -40,6 +42,7 @@ static int onefilefs_iterate(struct file *file, struct dir_context* ctx) {
 	
 	}
 	if (ctx->pos == 2){
+		TESTING(printk("DIR TEST 3"));
    // 		printk("%s: we are inside readdir with ctx->pos set to %lld", MODNAME, ctx->pos);
 		if(!dir_emit(ctx, MSG_FILE_NAME, FILENAME_MAXLEN, MSGFS_FILE_INODE_NUMBER, DT_UNKNOWN)){
 			return 0;
@@ -49,7 +52,7 @@ static int onefilefs_iterate(struct file *file, struct dir_context* ctx) {
 		}
 	
 	}
-
+	TESTING(printk("DIR TEST 4"));
 	return 0;
 
 }

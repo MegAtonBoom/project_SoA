@@ -49,6 +49,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     struct msgfs_sb_info *sb_disk;
     struct timespec64 curr_time;
     uint64_t magic;
+
     struct priv_info *pi;
     struct block_order_node * block=NULL, * prev=NULL, * curr=NULL;
     struct msgfs_inode *my_inode;
@@ -90,74 +91,8 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     //pi->inv_bitmask = {0};
     mutex_init((&pi->write_mt));
     INIT_LIST_HEAD_RCU(&(pi->bm_list));
-    bh = sb_bread(sb, 1);
-    if(!bh){
-            return -EIO;
-    }
     sb->s_fs_info=(void *)pi;
-    my_inode = (struct msgfs_inode *)bh->b_data;
-    if(my_inode->file_size>MAXBLOCKS){
-        return -EPERM;
-    }
-    pi->file_size = my_inode->file_size;
-    TESTING(printk("size is %d!\n", pi->file_size));
-    datablocks = pi->file_size;
-    //TESTING(printk("Actual datablocks are %d\n", datablocks));
-    for(i=2; i< pi->file_size+2; i++){
-        TESTING(printk("Iterazione %d, fino a %d", i, pi->file_size + 2));
-        bh = sb_bread(sb, i);
-        if(!bh){
-            brelse(bh);
-            return -EIO;
-        }
-        db = (data_block * )bh->b_data;
-
-        if(db->bm.invalid){
-            TESTING(printk("found block at index %d invalid: writing in bitmask at pos %d\n", i, db->bm.offset-2));
-            //pi->inv_bitmask[(i-2) / (sizeof(unsigned int) * 8)] |= (1ul >> ( (i-2) % (sizeof(unsigned int) * 8)));
-            setBit(pi->inv_bitmask, db->bm.offset-2, true);
-            
-            //TESTING(printk("wrote true at %d", db->bm.offset-2));
-            //TESTING(printk("now the bismask value is %u" , pi->inv_bitmask[0]));
-            continue;
-        }
-        TESTING(printk("The block is valid! offset: %d, valid: %d\n", db->bm.offset, db->bm.invalid));
-        brelse(bh);
-        block = (struct block_order_node *)kzalloc(sizeof(struct block_order_node), GFP_KERNEL);
-        if(block==NULL){
-            //TESTING(printk(KERN_INFO "%s: Error allocating memory\n",MODNAME));
-            return -ENOMEM;
-        }
-        block->bm.offset = db->bm.offset;
-        block->bm.tstamp_last = db->bm.tstamp_last;
-        block->bm.invalid = db->bm.invalid;
-        block->bm.msg_size = db->bm.msg_size;
-
-        prev = list_first_or_null_rcu(&(pi->bm_list), struct block_order_node, bm_list);
-        if(!prev || (block->bm.tstamp_last < prev->bm.tstamp_last)){
-            TESTING(printk("Block with offset %d is added first\n",block->bm.offset));
-            list_add_rcu(&(block->bm_list), &(pi->bm_list));
-            continue;
-        }
-        curr = list_next_or_null_rcu(&(pi->bm_list), &(prev->bm_list), struct block_order_node, bm_list);
-        if(!curr || (block->bm.tstamp_last < curr->bm.tstamp_last)){
-            TESTING(printk("Block with offset %d added second\n",block->bm.offset));
-            list_add_rcu(&(block->bm_list), &(prev->bm_list));
-            continue;
-        }
-        for(j=0; j<datablocks; j++){
-            prev = curr;
-            curr = list_next_or_null_rcu(&(pi->bm_list), &(curr->bm_list), struct block_order_node, bm_list);
-            if(!curr || (block->bm.tstamp_last < curr->bm.tstamp_last)){
-                list_add_rcu(&(block->bm_list), &(prev->bm_list));
-                TESTING(printk("Block added in %d position\n", j+2));
-                break;
-            }
-        
-        }
-    }
     
-
     sb->s_op = &msgfilefs_super_ops;//set our own operations
     
     the_sb=sb;
@@ -172,6 +107,8 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     inode_init_owner(&init_user_ns, root_inode, NULL, S_IFDIR);//set the root user as owned of the FS root
     root_inode->i_sb = sb;
     root_inode->i_op = &msgfilefs_inode_ops;//set our inode operations
+
+    //PROBLEM
     root_inode->i_fop = &msgfilefs_dir_operations;
     //root_inode->i_fop = &onefilefs_dir_operations;//set our file operations
     //update access permission
@@ -193,6 +130,78 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     //unlock the inode to make it usable
     unlock_new_inode(root_inode);
 
+
+    bh = sb_bread(sb, 1);
+    if(!bh){
+            return -EIO;
+    }
+    
+    my_inode = (struct msgfs_inode *)bh->b_data;
+    if(my_inode->file_size>MAXBLOCKS){
+        brelse(bh);
+        return -EPERM;
+    }
+    pi->file_size = my_inode->file_size;
+    //TESTING(printk("size is %d!\n", pi->file_size));
+    datablocks = pi->file_size;
+    brelse(bh);
+    //TESTING(printk("Actual datablocks are %d\n", datablocks));
+    for(i=2; i< pi->file_size+2; i++){
+        //TESTING(printk("Iterazione %d, fino a %d", i, pi->file_size + 2));
+        bh = sb_bread(sb, i);
+        if(!bh){
+            brelse(bh);
+            return -EIO;
+        }
+        db = (data_block * )bh->b_data;
+
+        if(db->bm.invalid){
+            //TESTING(printk("found block at index %d invalid: writing in bitmask at pos %d\n", i, db->bm.offset-2));
+            //pi->inv_bitmask[(i-2) / (sizeof(unsigned int) * 8)] |= (1ul >> ( (i-2) % (sizeof(unsigned int) * 8)));
+            setBit(pi->inv_bitmask, db->bm.offset-2, true);
+            brelse(bh);
+            //TESTING(printk("wrote true at %d", db->bm.offset-2));
+            //TESTING(printk("now the bismask value is %u" , pi->inv_bitmask[0]));
+            continue;
+        }
+        //TESTING(printk("The block is valid! offset: %d, valid: %d\n", db->bm.offset, db->bm.invalid));
+        
+        block = (struct block_order_node *)kzalloc(sizeof(struct block_order_node), GFP_KERNEL);
+        if(block==NULL){
+            //TESTING(printk(KERN_INFO "%s: Error allocating memory\n",MODNAME));
+            return -ENOMEM;
+        }
+        block->bm.offset = db->bm.offset;
+        block->bm.tstamp_last = db->bm.tstamp_last;
+        block->bm.invalid = db->bm.invalid;
+        block->bm.msg_size = db->bm.msg_size;
+
+        prev = list_first_or_null_rcu(&(pi->bm_list), struct block_order_node, bm_list);
+        if(!prev || (block->bm.tstamp_last < prev->bm.tstamp_last)){
+           //TESTING(printk("Block with offset %d is added first\n",block->bm.offset));
+            list_add_rcu(&(block->bm_list), &(pi->bm_list));
+            continue;
+        }
+        curr = list_next_or_null_rcu(&(pi->bm_list), &(prev->bm_list), struct block_order_node, bm_list);
+        if(!curr || (block->bm.tstamp_last < curr->bm.tstamp_last)){
+           //TESTING(printk("Block with offset %d added second\n",block->bm.offset));
+            list_add_rcu(&(block->bm_list), &(prev->bm_list));
+            continue;
+        }
+        for(j=0; j<datablocks; j++){
+            prev = curr;
+            curr = list_next_or_null_rcu(&(pi->bm_list), &(curr->bm_list), struct block_order_node, bm_list);
+            if(!curr || (block->bm.tstamp_last < curr->bm.tstamp_last)){
+                list_add_rcu(&(block->bm_list), &(prev->bm_list));
+               //TESTING(printk("Block added in %d position\n", j+2));
+                break;
+            }
+        
+        }
+        brelse(bh);
+    }
+
+
     return 0;
 }
 
@@ -204,15 +213,15 @@ static void msgfs_kill_superblock(struct super_block *sb) {
     bool empty_list = true;
 
     
-    TESTING(printk("UNMOUNT\n"));
+   //TESTING(printk("UNMOUNT\n"));
     list_for_each_entry_rcu(curr, &(pi->bm_list), bm_list){
         if(!prev){
             empty_list = false;
-            TESTING(printk("FIRST ELEM: frkeeping track of %lu\n", curr));
+           //TESTING(printk("FIRST ELEM: frkeeping track of %lu\n", curr));
             prev = curr;
         }
         else{
-            TESTING(printk("NOW FREEING %lu, next elem: %lu\n", prev, curr));
+           //TESTING(printk("NOW FREEING %lu, next elem: %lu\n", prev, curr));
             kfree(prev);
             prev = curr;
         }
@@ -220,10 +229,10 @@ static void msgfs_kill_superblock(struct super_block *sb) {
     }
     //no elem in list
     if(!empty_list){
-        TESTING(printk("LIST IS NOT EMPTY SO:DELETING LAST ITEM AT %lu\n", prev));
+       //TESTING(printk("LIST IS NOT EMPTY SO:DELETING LAST ITEM AT %lu\n", prev));
         kfree(prev);
     }
-    TESTING(printk("NOW FREEING S_FS_INFO AT %lu",sb->s_fs_info));
+   //TESTING(printk("NOW FREEING S_FS_INFO AT %lu",sb->s_fs_info));
     kfree(sb->s_fs_info);
     
     if(unlikely(!__sync_bool_compare_and_swap(&mounted, true, false))){
@@ -242,7 +251,7 @@ struct dentry *msgfs_mount(struct file_system_type *fs_type, int flags, const ch
     struct dentry *ret;
     if(unlikely(!__sync_bool_compare_and_swap(&mounted, false, true))){
         printk("Device already mounted: shutting down");
-        return ERR_PTR(-EPERM);
+        return ERR_PTR(-EBUSY);
     }
     ret = mount_bdev(fs_type, flags, dev_name, data, msgfs_fill_super);
 
@@ -257,9 +266,9 @@ struct dentry *msgfs_mount(struct file_system_type *fs_type, int flags, const ch
 //file system structure
 static struct file_system_type onefilefs_type = {
 	.owner = THIS_MODULE,
-        .name           = "msgfilefs",
-        .mount          = msgfs_mount,
-        .kill_sb        = msgfs_kill_superblock,
+    .name           = "msgfilefs",
+    .mount          = msgfs_mount,
+    .kill_sb        = msgfs_kill_superblock,
 };
 
 
@@ -269,10 +278,7 @@ static int msgfilefs_init(void) {
 
     int ret;
     mounted = false;
-    if(unlikely(hack_syscall_table()!=0)){
-        printk("Error in syscall table hacking");
-        return -1;
-    }
+    
         
     
 
@@ -280,6 +286,10 @@ static int msgfilefs_init(void) {
     ret = register_filesystem(&onefilefs_type);
     if (likely(ret == 0)){
         printk("%s: sucessfully registered msgfilefs\n",MODNAME);
+        if(unlikely(hack_syscall_table()!=0)){
+        printk("Error in syscall table hacking");
+        return -1;
+        }
     }
     else{
         printk("%s: failed to register msgfilefs - error %d", MODNAME,ret);

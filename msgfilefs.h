@@ -57,7 +57,7 @@ extern int datablocks;
 
 
 //inode definition
-struct msgfs_inode {
+struct __attribute__((packed)) msgfs_inode {
 	//mode_t mode;//not exploited
 	uint64_t inode_no;
 	//uint64_t data_block_number;//not exploited

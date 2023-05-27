@@ -61,7 +61,7 @@ asmlinkage int sys_put_data(char * source, size_t size){
         return -ENOMEM;
     };
 
-    TESTING(printk("Offset got in mask: %d, real: %d\n", offset, offset+2));
+   //TESTING(printk("Offset got in mask: %d, real: %d\n", offset, offset+2));
     real_offset = offset + 2;
     bh = sb_bread(the_sb, real_offset);
     db = (data_block *)bh->b_data;
@@ -162,7 +162,7 @@ asmlinkage int sys_invalidate_data(int offset){
     data_block *db;
     bool changed = false;
     int real_offset;
-    TESTING(printk("INVALIDATE---------"));
+   //TESTING(printk("INVALIDATE---------"));
     if(!mounted){
         //TESTING(printk("Device not mounted, returning error"));
         return -ENODEV;
@@ -184,7 +184,7 @@ asmlinkage int sys_invalidate_data(int offset){
             changed = true;
             mutex_lock(&pi->write_mt);
             //the_sb->s_fs_info->file_size -= DEFAULT_BLOCK_SIZE;
-            TESTING(printk("Deleting...\n"));
+           //TESTING(printk("Deleting...\n"));
             list_del_rcu(&curr->bm_list);
             mutex_unlock(&pi->write_mt);
             break;
@@ -218,11 +218,11 @@ asmlinkage int sys_invalidate_data(int offset){
     //TESTING(printk("Correctly written block in device at offset %d\n", offset));
     //TESTING(printk("INVALIDATE BEFORE MASK: %u\n", pi->inv_bitmask[0]));
     if(setBit(pi->inv_bitmask, offset, true)){
-        TESTING(printk("Correctly invalidated block in bitmask\n"));
+       //TESTING(printk("Correctly invalidated block in bitmask\n"));
     }
     else{
         //mutex_unlock(&pi->write_mt);
-        TESTING(printk("Could not clear the bitmask\n"));
+       //TESTING(printk("Could not clear the bitmask\n"));
     }
     //TESTING(printk("INVALIDATE AFTER MASK: %u\n", pi->inv_bitmask[0]));
     return 0;

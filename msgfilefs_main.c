@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 	printf("Super block written succesfully\n");
 
 	// write file inode
-	file_inode.mode = S_IFREG;
+	//file_inode.mode = S_IFREG;
 	file_inode.inode_no = MSGFS_FILE_INODE_NUMBER;
 	file_inode.file_size = size - 2;
 	printf("File size is %ld\n",file_inode.file_size);
@@ -83,10 +83,10 @@ int main(int argc, char *argv[])
 	}
 	bd = calloc(1, sizeof(data_block));
 	printf("File inode written succesfully.\n");
-
+	/*
     INITIALIZE(bd)
 
-    for(int i=2; i<size; i++){
+    for(int i=2; i<size-1; i++){
 		printf("prova1");
 		fflush(stdout);
         bd->bm.offset=i;
@@ -100,6 +100,7 @@ int main(int argc, char *argv[])
 			return -1;
 	    }   
     }
+	*/
 	free(bd);
     printf("File datablock has been written succesfully.\n");
 	
