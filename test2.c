@@ -14,7 +14,7 @@ int main() {
 
     // Open the file
     do{
-        fd = open("msgfs", O_RDONLY);
+        fd = open("msgfs/msg-file", O_RDONLY);
         if (fd == -1) {
             perror("Errore per aprire il file");
             return 1;

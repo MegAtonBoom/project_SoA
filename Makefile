@@ -48,6 +48,6 @@ git:
 	git add test2.c
 
 compile:
-	gcc msgfilefs_main.c -o msgfilefs_format
+	gcc msgfilefs_format.c -o msgfilefs_format
 	gcc test.c -o test1
 	gcc test2.c -o test2

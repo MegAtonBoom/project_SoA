@@ -85,17 +85,14 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
         return -ENOMEM;
     }
 
-    //pi->list = head;
-    //pi->nblocks = sb_disk->nblocks;
     initBit(pi->inv_bitmask);
-    //pi->inv_bitmask = {0};
     mutex_init((&pi->write_mt));
     INIT_LIST_HEAD_RCU(&(pi->bm_list));
     sb->s_fs_info=(void *)pi;
     
     sb->s_op = &msgfilefs_super_ops;//set our own operations
     
-    the_sb=sb;
+    
 
     root_inode = iget_locked(sb, 0);//get a root inode indexed with 0 from cache
     if (!root_inode){
@@ -108,9 +105,8 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     root_inode->i_sb = sb;
     root_inode->i_op = &msgfilefs_inode_ops;//set our inode operations
 
-    //PROBLEM
+
     root_inode->i_fop = &msgfilefs_dir_operations;
-    //root_inode->i_fop = &onefilefs_dir_operations;//set our file operations
     //update access permission
     root_inode->i_mode = S_IFDIR | S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IXUSR | S_IXGRP | S_IXOTH;
 
@@ -200,7 +196,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
         }
         brelse(bh);
     }
-
+    the_sb=sb;
 
     return 0;
 }
