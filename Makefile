@@ -38,8 +38,8 @@ git:
 	git add bitmask_handler.c 
 	git add fileops.c 
 	git add dirops.c 
-	git add msgfilefs_mod.c 
-	git add msgfilefs_main.c
+	git add msgfilefs_src.c 
+	git add msgfilefs_format.c
 	git add msgfilefs.h 
 	git add msgfilefs_kernel.h
 	git add Makefile

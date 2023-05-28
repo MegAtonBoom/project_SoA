@@ -13,12 +13,11 @@
 //this iterate function just returns 3 entries: . and .. and then the name of the unique file of the file system
 static int msgfilefs_iterate(struct file *file, struct dir_context* ctx) {
 
-    //	printk("%s: we are inside readdir with ctx->pos set to %lld", MODNAME, ctx->pos);
+    
 	if(ctx->pos >= (2 + 1)) return 0;//we cannot return more than . and .. and the unique file entry
 
 	if (ctx->pos == 0){
- //   		printk("%s: we are inside readdir with ctx->pos set to %lld", MODNAME, ctx->pos);
-		//if(!dir_emit(ctx,".", 2 , MSGFS_ROOT_INODE_NUMBER, DT_UNKNOWN)){
+
 		if(!dir_emit_dot(file, ctx)){
 			return 0;
 		}
@@ -29,9 +28,7 @@ static int msgfilefs_iterate(struct file *file, struct dir_context* ctx) {
 	}
 
 	if (ctx->pos == 1){
-  //  		printk("%s: we are inside readdir with ctx->pos set to %lld", MODNAME, ctx->pos);
-		//here the inode number does not care
-		//if(!dir_emit(ctx,"..", 3 , 1, DT_UNKNOWN)){
+  
 		if(!dir_emit_dotdot(file, ctx)){
 			return 0;
 		}
@@ -41,8 +38,8 @@ static int msgfilefs_iterate(struct file *file, struct dir_context* ctx) {
 	
 	}
 	if (ctx->pos == 2){
-   // 		printk("%s: we are inside readdir with ctx->pos set to %lld", MODNAME, ctx->pos);
-		if(!dir_emit(ctx, MSG_FILE_NAME, FILENAME_MAXLEN, MSGFS_FILE_INODE_NUMBER, DT_UNKNOWN)){
+		
+   		if(!dir_emit(ctx, MSG_FILE_NAME, FILENAME_MAXLEN, MSGFS_FILE_INODE_NUMBER, DT_UNKNOWN)){
 			return 0;
 		}
 		else{

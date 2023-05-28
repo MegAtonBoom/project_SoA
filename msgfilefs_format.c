@@ -49,7 +49,6 @@ int main(int argc, char *argv[])
 	sb.version = 1;//file system version
 	sb.magic = MAGIC;
     sb.block_size = DEFAULT_BLOCK_SIZE;
-	//sb.nblocks = size;
 	
 
 
@@ -65,8 +64,6 @@ int main(int argc, char *argv[])
 
 	printf("Super block written succesfully\n");
 
-	// write file inode
-	//file_inode.mode = S_IFREG;
 	file_inode.inode_no = MSGFS_FILE_INODE_NUMBER;
 	file_inode.file_size = size - 2;
 	printf("File size is %ld\n",file_inode.file_size);
