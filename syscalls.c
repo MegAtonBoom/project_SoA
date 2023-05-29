@@ -18,14 +18,14 @@
  *      NOTE: The offset mentioned above is not the real offset in the device- it's just 
  *            real offset - 2 (just not counting superblock and file inode)
  */
-
-
-#include "msgfilefs_kernel.h" 
+ 
 #include <linux/syscalls.h>
 #include <linux/version.h>
 #include <linux/buffer_head.h>
 #include "lib/include/scth.h"
 #include <linux/rculist.h>
+
+#include "msgfilefs_kernel.h"
 
 //even if the syscall is present, should return error if the device is not mounted
 #define CHECK_MOUNTED\
@@ -56,7 +56,6 @@ asmlinkage int sys_put_data(char * source, size_t size){
     char *msg;
 
     CHECK_MOUNTED;
-
     //can't insert in a block more than MSGBUF_SIZE-1 (taking a byte for the \0) bytes 
     if(size > MSGBUF_SIZE - 1){
         return -ENOMEM;
@@ -82,10 +81,8 @@ asmlinkage int sys_put_data(char * source, size_t size){
     };
 
     real_offset = offset + 2;
-
     bh = sb_bread(the_sb, real_offset);
     db = (data_block *)bh->b_data;
-
     mutex_lock(&(pi->write_mt));
 
     ktime_get_real_ts64(&time);
@@ -97,7 +94,6 @@ asmlinkage int sys_put_data(char * source, size_t size){
     db->usrdata[size+1]='\0';
     node->bm = db->bm;
     list_add_tail_rcu(&(node->bm_list), &(pi->bm_list));
-
     mutex_unlock(&pi->write_mt);
 
     mark_buffer_dirty(bh);

@@ -12,7 +12,7 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 
-#include "msgfilefs.h"
+#include "msgfilefs_kernel.h"
 
 //this iterate function just returns 3 entries: . and .. and then the name of the unique file of the file system
 static int msgfilefs_iterate(struct file *file, struct dir_context* ctx) {
@@ -43,7 +43,7 @@ static int msgfilefs_iterate(struct file *file, struct dir_context* ctx) {
 	}
 	if (ctx->pos == 2){
 		
-   		if(!dir_emit(ctx, MSG_FILE_NAME, FILENAME_MAXLEN, MSGFS_FILE_INODE_NUMBER, DT_UNKNOWN)){
+   		if(!dir_emit(ctx, MSG_FILE_NAME, FILENAME_LEN, MSGFS_FILE_INODE_NUMBER, DT_UNKNOWN)){
 			return 0;
 		}
 		else{

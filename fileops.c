@@ -44,6 +44,7 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/version.h>
 
 #include "msgfilefs_kernel.h"
 
@@ -118,18 +119,21 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         get_info(actual_block->bm.tstamp_last >= current_ts);
         *off = (actual_block->bm.offset * DEFAULT_BLOCK_SIZE)+ sizeof(block_metadata);
     }
-    //if it's valid, we look for its metadata
+    //if it's valid, we look for its metadata (we don't need to update the offset)
     else{       
         get_info(actual_block->bm.offset == block_to_read);
     }
-    //if we don't find anything 
+    //if we don't find anything- might happen if we read the most recent block and it has been 
+    //invalidate meanwhile
     if(!found){
         rcu_read_unlock();
         return 0;
     }
     
     //we look block after block to concat the requested msg size
-    for( int i=0; i<MAXBLOCKS; i++ ){    
+    for( int i=0; i<MAXBLOCKS; i++ ){ 
+
+        //current offset inside the msg buffer inside the block, according to the current offset   
         current_pos = (*off - sizeof(block_metadata)) % DEFAULT_BLOCK_SIZE;
         bh = (struct buffer_head *)sb_bread(sb, actual_block->bm.offset);
         if(!bh){
@@ -138,7 +142,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         }
         current_db=(data_block *)bh->b_data;
         tmp = &(current_db->usrdata[current_pos]);
-        //last read, we made it this far
+        //We made to the last block we need to read
         if((actual_block->bm.msg_size - current_pos ) > blen -1){
             
             
@@ -150,6 +154,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
             *(unsigned long *)(filp->private_data) = actual_block->bm.tstamp_last;
             return (len - ret);
         }
+        //the current block is not enough to fill the buffer
         else{
             strncat(out, tmp, (actual_block->bm.msg_size - current_pos));
             strncat(out, "\n", 1);
@@ -157,7 +162,8 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
             blen -= (actual_block->bm.msg_size - current_pos) +1;
             actual_block = list_next_or_null_rcu(&(pi->bm_list), &(actual_block->bm_list), struct block_order_node, bm_list);
             
-            //we reach the end, can't read len bytes
+            //We reached the last block and we can't fill entirely the buffer, so we return what we
+            //have read so far
             if(!actual_block){
 
                 //update *offset properly
@@ -167,8 +173,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
                   
                 return ( size - ret );
             }
-
-            //we didn't finish with the read but we have a next block to read
+            //we didn't fill the buffer but we can read the next ordered block
             else{
                 *off = ((actual_block->bm.offset * DEFAULT_BLOCK_SIZE) + sizeof(block_metadata));
                 *(unsigned long *)(filp->private_data) = actual_block->bm.tstamp_last;
@@ -178,7 +183,8 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         }
 
     }
-    
+    //We shouldn't reach this point!
+    printk("%s: There was a bug in the read, returning 0\n", MODNAME);
     return 0;        
 }
 
@@ -201,12 +207,14 @@ int msgfilesfs_open(struct inode *inode, struct file *file) {
     file->private_data = (void *)tstamp;
     
     first = list_first_or_null_rcu(&(pi->bm_list), struct block_order_node, bm_list);
-
+    //in case we have something in the list, since it's already ordered we can use its 
+    //timestamp and offset
     if(first){
         *tstamp = first->bm.tstamp_last;
         file->f_pos=(((first->bm.offset) * DEFAULT_BLOCK_SIZE) + sizeof(block_metadata));
         
     }
+    //if the list of valid entries is empty, there's nothing to read
     else{
         
         *tstamp = 0;
@@ -216,7 +224,7 @@ int msgfilesfs_open(struct inode *inode, struct file *file) {
    return 0;
 }
 
-//release: only unlocking the mutex since we can open only once the file
+//release: only freeing the kernel space reserved for the file descriptor metadata
 int msgfilefs_release(struct inode *inode, struct file *file) {
 
     kfree(file->private_data);
@@ -250,7 +258,12 @@ struct dentry *msgfilefs_lookup(struct inode *parent_inode, struct dentry *child
 
 
         //this work is done if the inode was not already cached
-        inode_init_owner(&init_user_ns, the_inode, NULL, S_IFREG );
+        #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,16,0)
+            inode_init_owner(&init_user_ns, the_inode, NULL, S_IFREG);
+        #else
+            inode_init_owner(the_inode, NULL, S_IFREG);
+        #endif
+
         the_inode->i_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IXUSR | S_IXGRP | S_IXOTH;
         the_inode->i_fop = &msgfilefs_file_operations;
         the_inode->i_op = &msgfilefs_inode_ops;
@@ -281,7 +294,6 @@ struct dentry *msgfilefs_lookup(struct inode *parent_inode, struct dentry *child
 
 }
 
-//look up goes in the inode operations
 const struct inode_operations msgfilefs_inode_ops = {
     .lookup = msgfilefs_lookup,
 };

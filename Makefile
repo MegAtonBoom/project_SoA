@@ -47,5 +47,5 @@ git:
 
 compile:
 	gcc msgfilefs_format.c -o msgfilefs_format
-	gcc test.c -o test1
+	gcc test1.c -o test1
 	gcc test2.c -o test2

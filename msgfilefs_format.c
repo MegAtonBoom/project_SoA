@@ -51,10 +51,6 @@ int main(int argc, char *argv[])
 	sb.version = 1;//file system version
 	sb.magic = MAGIC;
     sb.block_size = DEFAULT_BLOCK_SIZE;
-	
-
-
-    
 
 	ret = write(fd, (char *)&sb, sizeof(sb));
 

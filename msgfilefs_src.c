@@ -108,7 +108,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
 
     root_inode->i_ino = MSGFS_ROOT_INODE_NUMBER;
 
-    #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,12,0)
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,16,0)
         inode_init_owner(&init_user_ns, root_inode, NULL, S_IFDIR);
     #else
         inode_init_owner(root_inode, NULL, S_IFDIR);
