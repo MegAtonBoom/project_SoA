@@ -1,3 +1,10 @@
+/*
+	This makefs will write the following information onto the disk
+	- BLOCK 0, superblock;
+	- BLOCK 1, inode of the unique file (the inode for root is volatile);
+	- BLOCK 2, ..., datablocks of the unique file 
+*/
+
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -10,12 +17,7 @@
 
 #include "msgfilefs.h"
 
-/*
-	This makefs will write the following information onto the disk
-	- BLOCK 0, superblock;
-	- BLOCK 1, inode of the unique file (the inode for root is volatile);
-	- BLOCK 2, ..., datablocks of the unique file 
-*/
+
 
 int main(int argc, char *argv[])
 {
@@ -31,7 +33,7 @@ int main(int argc, char *argv[])
 
 
 	if (argc != 2) {
-
+		printf("The second parameter must be the image name");
 		return -1;
 	}
 
@@ -81,10 +83,8 @@ int main(int argc, char *argv[])
     INITIALIZE(bd)
 
     for(int i=2; i<size; i++){
-		printf("prova1");
 		fflush(stdout);
         bd->bm.offset=i;
-		printf("Now offset is %d\n", i);
 		fflush(stdout);
         ret = write(fd, (char *)bd, sizeof(data_block));
         if (ret != DEFAULT_BLOCK_SIZE) {

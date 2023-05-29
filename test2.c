@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define MAX_BUFFER_SIZE 100
+#define MAX_BUFFER_SIZE 10000
 
 int main() {
     int fd;
