@@ -1,9 +1,9 @@
 /*
-	This makefs will write the following information onto the disk
-	- BLOCK 0, superblock;
-	- BLOCK 1, inode of the unique file (the inode for root is volatile);
-	- BLOCK 2, ..., datablocks of the unique file 
-*/
+ *	This file will write the following information onto the disk
+ *	- BLOCK 0, superblock;
+ *	- BLOCK 1, inode of the unique file (the inode for root is volatile);
+ *	- BLOCK 2, ..., datablocks of the unique file 
+ */
 
 #include <unistd.h>
 #include <stdio.h>
@@ -82,6 +82,7 @@ int main(int argc, char *argv[])
 	
     INITIALIZE(bd)
 
+	//for each datablock we write his offset as a metadata and mark it as invalid
     for(int i=2; i<size; i++){
 		fflush(stdout);
         bd->bm.offset=i;

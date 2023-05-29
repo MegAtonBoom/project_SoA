@@ -42,7 +42,7 @@ git:
 	git add msgfilefs_kernel.h
 	git add Makefile
 	git add syscalls.c 
-	git add test.c 
+	git add test1.c 
 	git add test2.c
 
 compile:

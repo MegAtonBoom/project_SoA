@@ -1,3 +1,7 @@
+/*
+ * This file only implements the only directory operation we need, the iteration 
+ */
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -51,7 +55,6 @@ static int msgfilefs_iterate(struct file *file, struct dir_context* ctx) {
 
 }
 
-//add the iterate function in the dir operations
 const struct file_operations msgfilefs_dir_operations = {
     .owner = THIS_MODULE,
     .iterate = msgfilefs_iterate,

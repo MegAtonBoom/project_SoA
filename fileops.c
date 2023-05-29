@@ -1,3 +1,40 @@
+/*
+ * This file implements the requested file operations needet to manage working sessions on
+ * our unique file considering the requested feature: the read han't to be block ordered but
+ * time ordered based on write timestamp.
+ *
+ * 1-   Open: opening in our case needs some initialization before read: we need to know 
+ *            who is the first block whe need to read- since we want a time ordered read, it 
+ *            could be any of the MAXBLOCKS-2 datablocks currently valid (we can get those
+ *            informations form the superblock private data)- to get his timestamp in case it gets
+ *            invalidated meanwhile and the actual offset in the device
+ *
+ * 2-   Release: it just has to free the kernel space used by our private file descriptor metadata
+ *            to store the last timestamp read
+ *
+ * 3-   Read: The read operation allows us to read from the file in a time ordered manner.
+ *            A single call to the read function can risult in multiple blocks actually read
+ *            I.E. the next two blocks to be read have each 10 bytes of data and we ask for 15 bytes:
+ *            we will get the full content of the first block and half of the second block.
+ *            Using RCU mechanisms and syncronization, we can't have someone overwriting the device 
+ *            (file) content while a single read call has to access to more than one block.
+ *            
+ *            N.B.1: The actual buffer the read will return will contain a \n for each piece of
+ *            block read. That means than, in the previous example, it will return the first 10 bytes
+ *            of the first block, then \n, then the first 3 bytes of the second block and then 
+ *            another \n.
+ *
+ *            N.B.2: A second read call on the same session, instead, if the current block has been
+ *            invalidated in the meanwhile, will start the reading from the next valid block in 
+ *            timestamp order. That means that, in the previous example, if we call "A" the first
+ *            block with 10 bytes and we assume it has timestamp 1 and we call "B" the second block
+ *            from which we read only 3 bytes and we assume it has timestamp 2 and we call "C" the 
+ *            valid block with timestamp 3 that's right after the block "B", then if after the read
+ *            we called in the example the block gets invalidated and after that we call another read
+ *            requesting 8 bytes, we won't get the remaining bytes in "B" but the first bytes of the 
+ *            "C" block.
+ */
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -21,13 +58,14 @@
             }\
         }
 
+
 ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t * off) {
     
     struct buffer_head *bh = NULL;
     uint64_t file_size;
     int ret, blen, size=0;
     loff_t current_pos;
-    int block_to_read, res;   //index of the block to be read from device
+    int block_to_read, res; 
     struct super_block *sb;
     struct priv_info *pi;
 
@@ -41,11 +79,14 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     char *out;  
     char *tmp;
     
+    //we get the timestamp of the last read block
     current_ts = (*(unsigned long *)filp->private_data);
+
     sb = filp->f_path.dentry->d_inode->i_sb;
     pi = (struct priv_info *)sb->s_fs_info; 
     file_size = (pi->file_size + 2) * DEFAULT_BLOCK_SIZE;
 
+    //blen = tmp container of the remaining bytes to read
     blen = len;
 
     //check that *off is within boundaries
@@ -55,41 +96,39 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
 
 
-    //compute the actual index of the the first block to be read from device (ordered by writing timestamp)
+    //compute the actual index of the the first block to be read from device
     block_to_read = (*off / DEFAULT_BLOCK_SIZE);
 
     
     out = (char *)kzalloc(len+1 * sizeof(char), GFP_KERNEL);
-    if(!out){
-        
+    if(!out){  
         return -EIO;
     }
-
-    blen = len;
     rcu_read_lock();
 
     
-    
+    //we get the state of the block we need to read
     res = getBit(pi->inv_bitmask, block_to_read -2);
-    if(res == ERROR){
-        
+    if(res == ERROR){ 
         return 0;
     }   
-    else if(res == 1){
-        
+    //if it's actually invalid, we look for the next block in the timestamp ordered RCU list
+    //and update the actual offset based on the current block to read
+    else if(res == 1){     
         get_info(actual_block->bm.tstamp_last >= current_ts);
         *off = (actual_block->bm.offset * DEFAULT_BLOCK_SIZE)+ sizeof(block_metadata);
     }
-    else{
-        
+    //if it's valid, we look for its metadata
+    else{       
         get_info(actual_block->bm.offset == block_to_read);
     }
-
+    //if we don't find anything 
     if(!found){
         rcu_read_unlock();
         return 0;
     }
     
+    //we look block after block to concat the requested msg size
     for( int i=0; i<MAXBLOCKS; i++ ){    
         current_pos = (*off - sizeof(block_metadata)) % DEFAULT_BLOCK_SIZE;
         bh = (struct buffer_head *)sb_bread(sb, actual_block->bm.offset);
