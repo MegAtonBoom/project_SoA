@@ -89,7 +89,8 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     }
 
     out = (char *)kzalloc(len+1 * sizeof(char), GFP_KERNEL);
-    if(!out){  
+    if(!out){ 
+        printk(KERN_INFO "%s: Error allocating memory\n",MODNAME); 
         return -EIO;
     }
 
@@ -126,6 +127,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         if(!bh){
             rcu_read_unlock();
             kfree(out);
+            printk(KERN_INFO "%s: Error with the bread\n",MODNAME);
             return -EIO;
         }
         current_db=(data_block *)bh->b_data;
@@ -173,7 +175,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
     }
     //We shouldn't reach this point!
-    printk("%s: There was a bug in the read, returning 0\n", MODNAME);
+    printk(KERN_INFO "%s: There was a bug in the read, returning 0\n", MODNAME);
     kfree(out);
     return 0;        
 }
@@ -192,6 +194,7 @@ int msgfilesfs_open(struct inode *inode, struct file *file) {
 
     tstamp = (unsigned long *)kzalloc(sizeof(unsigned long), GFP_KERNEL);
     if(!tstamp){
+        printk(KERN_INFO "%s: Error allocating memory for tstamp variable\n",MODNAME);
         return -1;
     }
     file->private_data = (void *)tstamp;

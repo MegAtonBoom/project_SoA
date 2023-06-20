@@ -82,6 +82,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
 
     //check on the expected magic number
     if(magic != sb->s_magic){
+        printk(KERN_INFO "%s: Not supported magic number\n",MODNAME);
 	    return -EBADF;
     }
 
@@ -103,6 +104,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
 
     root_inode = iget_locked(sb, 0);    //get a root inode indexed with 0 from cache
     if (!root_inode){
+        printk(KERN_INFO "%s: Error in getting the inode\n",MODNAME);
         return -ENOMEM;
     }
 
@@ -132,6 +134,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     sb->s_root = d_make_root(root_inode);
 
     if (!sb->s_root){
+        printk(KERN_INFO "%s: Error in getting the inode\n",MODNAME);
         return -ENOMEM;
     }
 
@@ -142,6 +145,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     //reading our own inode
     bh = sb_bread(sb, 1);
     if(!bh){
+            printk(KERN_INFO "%s: Error with the bread\n",MODNAME);
             return -EIO;
     }
     
@@ -151,6 +155,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     //cant be > MAXBLOCKSn (-2 because we don't take in account superblock and inode)
     if(my_inode->file_size>MAXBLOCKS-2){
         brelse(bh);
+        printk(KERN_INFO "%s: Error: the device has more blocks than supported\n",MODNAME);
         return -EPERM;
     }
 
@@ -166,6 +171,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
         bh = sb_bread(sb, i);
         if(!bh){
             brelse(bh);
+            printk(KERN_INFO "%s: Error with the bread\n",MODNAME);
             return -EIO;
         }
         db = (data_block * )bh->b_data;
@@ -261,7 +267,7 @@ static void msgfs_kill_superblock(struct super_block *sb) {
     kfree(sb->s_fs_info);
     
     if(unlikely(!__sync_bool_compare_and_swap(&mounted, true, false))){
-        printk("Error in mount val management\n");
+        printk(KERN_INFO "%s: Error in mounted variable management\n",MODNAME);
     }
 
     kill_block_super(sb);
@@ -277,13 +283,13 @@ struct dentry *msgfs_mount(struct file_system_type *fs_type, int flags, const ch
     //just checking if the file system is already mounted- as we said, we assume for simplicity it
     //can be mounted only once
     if(unlikely(!__sync_bool_compare_and_swap(&mounted, false, true))){
-        printk("Device already mounted: shutting down");
+        printk("%s: Device already mounted: shutting down\n", MODNAME);
         return ERR_PTR(-EBUSY);
     }
     ret = mount_bdev(fs_type, flags, dev_name, data, msgfs_fill_super);
 
     if (unlikely(IS_ERR(ret)))
-        printk("%s: error mounting msgfilefs",MODNAME);
+        printk("%s: error mounting msgfilefs\n",MODNAME);
     else
         printk("%s: msgfilefs is succesfully mounted on from device %s\n",MODNAME,dev_name);
 
@@ -308,18 +314,18 @@ static int msgfilefs_init(void) {
     
         
     if(unlikely(hack_syscall_table()!=0)){
-        printk("Error in syscall table hacking");
+        printk(KERN_INFO "%s: Error in syscall table hacking", MODNAME);
         return -1;
     }
 
     //register filesystem
     ret = register_filesystem(&msgfilefs_type);
     if (likely(ret == 0)){
-        printk("%s: sucessfully registered msgfilefs\n",MODNAME);
+        printk(KERN_INFO "%s: sucessfully registered msgfilefs\n",MODNAME);
         
     }
     else{
-        printk("%s: failed to register msgfilefs - error %d", MODNAME,ret);
+        printk(KERN_INFO "%s: failed to register msgfilefs - error %d", MODNAME,ret);
     }
     
     return 0;
@@ -334,9 +340,9 @@ static void msgfilefs_exit(void) {
     ret = unregister_filesystem(&msgfilefs_type);
 
     if (likely(ret == 0))
-        printk("%s: sucessfully unregistered file system driver\n",MODNAME);
+        printk(KERN_INFO "%s: sucessfully unregistered file system driver\n",MODNAME);
     else
-        printk("%s: failed to unregister singlefilefs driver - error %d", MODNAME, ret);
+        printk(KERN_INFO "%s: failed to unregister singlefilefs driver - error %d", MODNAME, ret);
         
 }
 
