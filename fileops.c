@@ -20,8 +20,8 @@
  *            (file) content while a single read call has to access to more than one block.
  *            
  *            N.B.1: The actual buffer the read will return will contain a \n for each piece of
- *            block read. That means than, in the previous example, it will return the first 10 bytes
- *            of the first block, then \n, then the first 3 bytes of the second block and then 
+ *            block read. That means that, in the previous example, it will return the first 10 bytes
+ *            of the first block, then a \n, then the first 3 bytes of the second block and then 
  *            another \n.
  *
  *            N.B.2: A second read call on the same session, instead, if the current block has been
@@ -30,9 +30,9 @@
  *            block with 10 bytes and we assume it has timestamp 1 and we call "B" the second block
  *            from which we read only 3 bytes and we assume it has timestamp 2 and we call "C" the 
  *            valid block with timestamp 3 that's right after the block "B", then if after the read
- *            we called in the example the block gets invalidated and after that we call another read
- *            requesting 8 bytes, we won't get the remaining bytes in "B" but the first bytes of the 
- *            "C" block.
+ *            we called in the previous example the block B gets invalidated and after that we call 
+ *            another read requesting 8 bytes, we won't get the remaining bytes in "B" but the  
+ *            first bytes of the "C" block.
  */
 
 #include <linux/init.h>
@@ -49,24 +49,12 @@
 #include "msgfilefs_kernel.h"
 
 
-
-
-#define get_info(cond)\
-        list_for_each_entry_rcu(actual_block, (&pi->bm_list), bm_list){\
-            if (cond){\
-                found = true;\
-                break;\
-            }\
-        }
-
-
 ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t * off) {
     
     struct buffer_head *bh = NULL;
     uint64_t file_size;
     int ret, blen, size=0;
-    loff_t current_pos;
-    int block_to_read, res; 
+    loff_t current_pos; 
     struct super_block *sb;
     struct priv_info *pi;
 
@@ -95,39 +83,38 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         return 0;
     }
 
+    //check on len, we return 0 with len 1 since we would only put a \n
+    if(len<1){
+        return 0;
+    }
 
-
-    //compute the actual index of the the first block to be read from device
-    block_to_read = (*off / DEFAULT_BLOCK_SIZE);
-
-    
     out = (char *)kzalloc(len+1 * sizeof(char), GFP_KERNEL);
     if(!out){  
         return -EIO;
     }
+
     rcu_read_lock();
 
-    
-    //we get the state of the block we need to read
-    res = getBit(pi->inv_bitmask, block_to_read -2);
-    if(res == ERROR){ 
-        return 0;
-    }   
-    //if it's actually invalid, we look for the next block in the timestamp ordered RCU list
-    //and update the actual offset based on the current block to read
-    else if(res == 1){     
-        get_info(actual_block->bm.tstamp_last >= current_ts);
-        *off = (actual_block->bm.offset * DEFAULT_BLOCK_SIZE)+ sizeof(block_metadata);
+    //we need the last block we read, ot he next in chronological order
+    list_for_each_entry_rcu(actual_block, (&pi->bm_list), bm_list){
+        if (actual_block->bm.tstamp_last >= current_ts){
+            found = true;
+            break;
+        }
     }
-    //if it's valid, we look for its metadata (we don't need to update the offset)
-    else{       
-        get_info(actual_block->bm.offset == block_to_read);
-    }
-    //if we don't find anything- might happen if we read the most recent block and it has been 
-    //invalidate meanwhile
+    //just leave the rcu read block and quit returning 0, if we can't find that block
     if(!found){
         rcu_read_unlock();
+        kfree(out);
         return 0;
+    }
+
+    /* we update the offset only if the timestamp of the last read block is not the same as 
+    *  the one of the block we are currently reading (that means that the last block has beeen
+    *  invalidated meanwhile, so the curren one might have a different offset in the file structure)
+    */
+    if(actual_block->bm.tstamp_last > current_ts){
+        *off = (actual_block->bm.offset * DEFAULT_BLOCK_SIZE)+ sizeof(block_metadata);
     }
     
     //we look block after block to concat the requested msg size
@@ -138,6 +125,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         bh = (struct buffer_head *)sb_bread(sb, actual_block->bm.offset);
         if(!bh){
             rcu_read_unlock();
+            kfree(out);
             return -EIO;
         }
         current_db=(data_block *)bh->b_data;
@@ -152,6 +140,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
             ret = copy_to_user(buf, out, len);
             *off += blen-1;
             *(unsigned long *)(filp->private_data) = actual_block->bm.tstamp_last;
+            kfree(out);
             return (len - ret);
         }
         //the current block is not enough to fill the buffer
@@ -170,7 +159,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
                 rcu_read_unlock();
                 *off = file_size + 1;               
                 ret = copy_to_user(buf, out, size);
-                  
+                kfree(out);
                 return ( size - ret );
             }
             //we didn't fill the buffer but we can read the next ordered block
@@ -185,6 +174,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     }
     //We shouldn't reach this point!
     printk("%s: There was a bug in the read, returning 0\n", MODNAME);
+    kfree(out);
     return 0;        
 }
 

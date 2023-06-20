@@ -19,35 +19,35 @@ int main() {
     do{
         fd = open("msgfs/msg-file", O_RDONLY);
         if (fd == -1) {
-            perror("Errore per aprire il file");
+            perror("Error opening the file");
             return 1;
         }
 
         do {
             
-            printf("Dimmi il numero di byte da leggere: ");
+            printf("Tell me the number of bytes to read: ");
             scanf("%zu", &buffer_size);
             getchar(); 
 
             
             bytes_read = read(fd, buffer, buffer_size);
             if (bytes_read == -1) {
-                perror("Errore di lettura nel file");
+                perror("Error in the file read");
                 close(fd);
                 return 1;
             }
 
             
-            printf("Bytes letti: %zd\n", bytes_read);
-            printf("Contenuto del buffer: %.*s\n", (int)bytes_read, buffer);
+            printf("Read bytes: %zd\n", bytes_read);
+            printf("Buffer content: %.*s\n", (int)bytes_read, buffer);
 
         
-            printf("Continuare a leggere sullo stesso fd? (y/n): ");
+            printf("Keep reading using the same fd? (y/n): ");
             scanf(" %c", &choice);
             getchar(); 
         } while (choice == 'y' || choice == 'Y');
         close(fd);
-        printf("Continuare avviando un nuovo fd? (y/n): ");
+        printf("Keep reading, but with a new fd? (y/n): ");
         scanf(" %c", &choice);
         getchar(); 
     }while (choice == 'y' || choice == 'Y');

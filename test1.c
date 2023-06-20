@@ -21,38 +21,49 @@ int main() {
     int result;
 
     do {
-        printf("Scegli un'opzione:\n");
-        printf("1. Scrittura\n");
-        printf("2. Lettura\n");
-        printf("3. Invalidazione\n");
-        printf("0. Esci\n");
+        printf("Pick an option:\n");
+        printf("1. Write\n");
+        printf("2. Read\n");
+        printf("3. Invalidate\n");
+        printf("0. Quit\n");
         scanf("%d", &choice);
 
         switch (choice) {
             case 1:
-                printf("Inserisci il messaggio: ");
+                
+                printf("Please insert the message: ");
                 scanf(" %[^\n]", message);
 
                 size = strlen(message);
-                printf("messaggio lungo: %ld\n", strlen(message));
+                printf("message len: %ld\n", strlen(message));
 
                 result = syscall(WRITE_SYSCALL_NUM, message, size);
-                printf("Risultato scrittura: %d\n", result);
+                if(result<0){
+                    printf("write result: %d; that means the message could not be inserted \n", result);
+                }
+                else{
+                    printf("write result (offset of the message): %d\n", result);
+                }
 
                 break;
 
             case 2:
-                printf("Inserisci l'offset: ");
+                printf("Tell me the offset: ");
                 scanf("%d", &offset);
 
-                printf("Inserisci la dimensione: ");
+                printf("Tell me the size: ");
                 scanf("%d", &size);
 
                 char* buffer = calloc(1, size);
 
                 result = syscall(READ_SYSCALL_NUM, offset, buffer, size);
-                printf("Risultato lettura: %d\n", result);
-                printf("Ho letto: %s\n", buffer);
+                if(result<0){
+                    printf("The message at given offset can't be read\n");
+                }
+                else{
+                    printf("Read result: %d\n", result);
+                    printf("I've read: %s\n", buffer);
+                }
                 fflush(stdout);
 
                 free(buffer);
@@ -60,24 +71,27 @@ int main() {
                 break;
 
             case 3:
-                printf("Inserisci l'offset: ");
+                printf("Tell me the offset: ");
                 scanf("%d", &offset);
 
                 result = syscall(INVALIDATE_SYSCALL_NUM, offset);
-                printf("Risultato invalidazione: %d\n", result);
+                if(result<0){
+                    printf("The message at given offset can't be invalidate\n");
+                }
+                printf("Invalidate result: %d\n", result);
 
                 break;
 
             case 0:
-                printf("Uscita dal programma.\n");
+                printf("Quitting.\n");
                 exit(0);
 
             default:
-                printf("Opzione non valida. Riprova.\n");
+                printf("Invalid option.\n");
                 break;
         }
 
-        printf("Vuoi uscire (0) o tornare al menù (1)? ");
+        printf("Quit (0) or go back to the menu (1)? ");
         scanf("%d", &choice);
 
     } while (choice == 1);
