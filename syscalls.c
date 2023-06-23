@@ -38,7 +38,12 @@
     if(offset<0 || offset > datablocks){\
         return -EIO;\
     }
-
+    
+//checking size to be a valid value
+#define CHECK_SIZE\
+    if(size<0){\
+        return -EIO;\
+    }
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
@@ -56,6 +61,8 @@ asmlinkage int sys_put_data(char * source, size_t size){
     char *msg;
 
     CHECK_MOUNTED;
+
+    CHECK_SIZE;
     //can't insert in a block more than MSGBUF_SIZE-1 (taking a byte for the \0) bytes 
     if(size > MSGBUF_SIZE - 1){
         return -ENOMEM;
@@ -121,8 +128,10 @@ asmlinkage int sys_get_data(int offset, char * destination, size_t size){
 
     CHECK_OFFSET;
 
+    CHECK_SIZE;
+
     //if the block is currently invalid, we deny the request
-    if((getBit(pi->inv_bitmask, offset))==ERROR){
+    if((getBit(pi->inv_bitmask, offset))!=0){
         return -ENODATA;
     }
 
