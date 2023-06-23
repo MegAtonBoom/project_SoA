@@ -25,7 +25,7 @@ int main() {
 
         do {
             
-            printf("Tell me the number of bytes to read: ");
+            printf("Tell me the number of bytes to read <10000: ");
             scanf("%zu", &buffer_size);
             getchar(); 
 
