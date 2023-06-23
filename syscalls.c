@@ -39,11 +39,18 @@
         return -EIO;\
     }
     
-//checking size to be a valid value
-#define CHECK_SIZE\
+//checking size to be a valid value; cant be <0 or- only in some cases- > thank MSGBUF_SIZE-1;
+//reserving a location for the \0
+#define CHECK_SIZE(with_upperbbound)\
     if(size<0){\
         return -EIO;\
+    }\
+    if(with_upperbbound){\
+        if(size > MSGBUF_SIZE - 1){\
+            return -ENOMEM;\
+        }\
     }
+    
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
@@ -62,11 +69,8 @@ asmlinkage int sys_put_data(char * source, size_t size){
 
     CHECK_MOUNTED;
 
-    CHECK_SIZE;
-    //can't insert in a block more than MSGBUF_SIZE-1 (taking a byte for the \0) bytes 
-    if(size > MSGBUF_SIZE - 1){
-        return -ENOMEM;
-    }
+    CHECK_SIZE(true);
+    
 
     node = (struct block_order_node *)kmalloc(sizeof(struct block_order_node), GFP_KERNEL);
     if((offset=getInvBit(pi->inv_bitmask))==ERROR){
@@ -128,7 +132,7 @@ asmlinkage int sys_get_data(int offset, char * destination, size_t size){
 
     CHECK_OFFSET;
 
-    CHECK_SIZE;
+    CHECK_SIZE(false);
 
     //if the block is currently invalid, we deny the request
     if((getBit(pi->inv_bitmask, offset))!=0){

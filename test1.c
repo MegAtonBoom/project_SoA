@@ -12,11 +12,12 @@
 #define WRITE_SYSCALL_NUM 134
 #define READ_SYSCALL_NUM 156
 #define INVALIDATE_SYSCALL_NUM 174
-#define MAX_MESSAGE_SIZE 100
+#define MAX_MESSAGE_SIZE 4096
 
 int main() {
     int choice;
-    char message[MAX_MESSAGE_SIZE];
+    //only to test values > than the max allowed message size
+    char *message;
     int offset, size;
     int result;
 
@@ -30,12 +31,12 @@ int main() {
 
         switch (choice) {
             case 1:
-                
+                message = (char *)malloc(MAX_MESSAGE_SIZE);
                 printf("Please insert the message: ");
-                scanf(" %[^\n]", message);
+                scanf(" %s", message);
 
                 size = strlen(message);
-                printf("message len: %ld\n", strlen(message));
+                printf("message len: %d\n", size);
 
                 result = syscall(WRITE_SYSCALL_NUM, message, size);
                 if(result<0){
@@ -44,7 +45,9 @@ int main() {
                 else{
                     printf("write result (offset of the message): %d\n", result);
                 }
+                fflush(stdout);
 
+                free(message);
                 break;
 
             case 2:
@@ -54,19 +57,19 @@ int main() {
                 printf("Tell me the size: ");
                 scanf("%d", &size);
 
-                char* buffer = calloc(1, size);
+                message = calloc(1, size);
 
-                result = syscall(READ_SYSCALL_NUM, offset, buffer, size);
+                result = syscall(READ_SYSCALL_NUM, offset, message, size);
                 if(result<0){
                     printf("The message at given offset can't be read\n");
                 }
                 else{
                     printf("Read result: %d\n", result);
-                    printf("I've read: %s\n", buffer);
+                    printf("I've read: %s\n", message);
                 }
                 fflush(stdout);
 
-                free(buffer);
+                free(message);
 
                 break;
 
