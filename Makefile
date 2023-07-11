@@ -30,20 +30,6 @@ mount-fs:
 
 unmount-fs:
 	umount msgfs
-	
-
-git:
-	git add bitmask_handler.c 
-	git add fileops.c 
-	git add dirops.c 
-	git add msgfilefs_src.c 
-	git add msgfilefs_format.c
-	git add msgfilefs.h 
-	git add msgfilefs_kernel.h
-	git add Makefile
-	git add syscalls.c 
-	git add test1.c 
-	git add test2.c
 
 compile:
 	gcc msgfilefs_format.c -o msgfilefs_format
