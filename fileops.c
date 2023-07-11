@@ -251,7 +251,7 @@ struct dentry *msgfilefs_lookup(struct inode *parent_inode, struct dentry *child
 
 
         //this work is done if the inode was not already cached
-        #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,16,0)
+        #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,12,0)
             inode_init_owner(&init_user_ns, the_inode, NULL, S_IFREG);
         #else
             inode_init_owner(the_inode, NULL, S_IFREG);
