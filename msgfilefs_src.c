@@ -19,6 +19,7 @@
 #include <linux/syscalls.h>
 #include <linux/stddef.h>
 #include <linux/rculist.h>
+#include <linux/srcu.h>
 
 #include "msgfilefs_kernel.h"
 
@@ -33,6 +34,8 @@ static struct dentry_operations msgfilefs_dentry_ops = {
 
 
 int datablocks;
+
+int stop_rcu;
 
 struct super_block *the_sb;
 
@@ -61,12 +64,11 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     uint64_t magic;
 
     struct priv_info *pi;
-    struct block_order_node * block=NULL, * prev=NULL, * curr=NULL;
+    struct block_order_node * block=NULL;
     struct msgfs_inode *my_inode;
-    data_block *db;
-    int i, j;
+    int i;
     
-
+    stop_rcu = 0;
     //Unique identifier of the filesystem
     sb->s_magic = MAGIC;
 
@@ -78,13 +80,6 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
 
     sb_disk = (struct msgfs_sb_info *)bh->b_data;
     magic = sb_disk->magic;
-    brelse(bh);
-
-    //check on the expected magic number
-    if(magic != sb->s_magic){
-        printk(KERN_INFO "%s: Not supported magic number\n",MODNAME);
-	    return -EBADF;
-    }
 
     //private info, our file system specific metadata kept in ram
     pi=(struct priv_info *)kzalloc(sizeof(struct priv_info), GFP_KERNEL);
@@ -93,10 +88,36 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
         return -ENOMEM;
     }
 
-    initBit(pi->inv_bitmask);
     mutex_init((&pi->write_mt));
+    init_srcu_struct(&pi->srcu);
     INIT_LIST_HEAD_RCU(&(pi->bm_list));
     sb->s_fs_info=(void *)pi;
+
+    initBit(pi->inv_bitmask);
+
+    //for every valid block we have its index saved in the superblock; we just read the info
+    //from the superblock and make easily the ordered rcu list of metadata
+    for(i=0; i < sb_disk->n_valid_blocks; i++){
+        block = (struct block_order_node *)kzalloc(sizeof(struct block_order_node), GFP_KERNEL);
+
+        if(!block){
+            printk(KERN_INFO "%s: Error allocating memory\n", MODNAME);
+            return -ENOMEM;
+        }
+        setBit(pi->inv_bitmask, sb_disk->valid_blocks[i]-2, false);
+        block->bm.offset = sb_disk->valid_blocks[i];
+        block->bm.tstamp_last = i;
+
+        list_add_tail_rcu(&(block->bm_list), &(pi->bm_list));
+    }
+    brelse(bh);
+
+    //check on the expected magic number
+    if(magic != sb->s_magic){
+        printk(KERN_INFO "%s: Not supported magic number\n",MODNAME);
+	    return -EBADF;
+    }
+
     
     sb->s_op = &msgfilefs_super_ops;    //set our own operations
     
@@ -163,85 +184,35 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     datablocks = pi->file_size;
     brelse(bh);
 
-    //for each datablock in our device we get the metadata- must know if it's invalid and
-    //in case he's not, must have his metadata wich we store in the private info struct as a 
-    //RCU list ordered by ascending timestamp
-    for(i=2; i< pi->file_size+2; i++){
-
-        bh = sb_bread(sb, i);
-        if(!bh){
-            brelse(bh);
-            printk(KERN_INFO "%s: Error with the bread\n",MODNAME);
-            return -EIO;
-        }
-        db = (data_block * )bh->b_data;
-
-        //in case it's invalid we just update accordingly the value stored in the bitmask
-        if(db->bm.invalid){
-           
-            setBit(pi->inv_bitmask, db->bm.offset-2, true);
-            brelse(bh);
-            continue;
-        }
-        
-        block = (struct block_order_node *)kzalloc(sizeof(struct block_order_node), GFP_KERNEL);
-
-        if(!block){
-            return -ENOMEM;
-        }
-
-        block->bm.offset = db->bm.offset;
-        block->bm.tstamp_last = db->bm.tstamp_last;
-        block->bm.invalid = db->bm.invalid;
-        block->bm.msg_size = db->bm.msg_size;
-
-        //from here we are just looking for the correct place to put the valid block
-        //based on his timestamp
-        prev = list_first_or_null_rcu(&(pi->bm_list), struct block_order_node, bm_list);
-
-        //if the list is empty or the current block has a lower timestmp, we put it on the 
-        //head of the list
-        if(!prev || (block->bm.tstamp_last < prev->bm.tstamp_last)){
-            list_add_rcu(&(block->bm_list), &(pi->bm_list));
-            continue;
-        }
-
-        //if there's only one element in our list or our block has a lower timestamp than the second
-        //element, we pot it in the between
-        curr = list_next_or_null_rcu(&(pi->bm_list), &(prev->bm_list), struct block_order_node, bm_list);
-        if(!curr || (block->bm.tstamp_last < curr->bm.tstamp_last)){
-            list_add_rcu(&(block->bm_list), &(prev->bm_list));
-            continue;
-        }
-
-        //we look in the list until we get the couple of nodes where we have to put the new block 
-        //or, if we reach the end, we just put it at the end 
-        for(j=0; j<datablocks; j++){
-            prev = curr;
-            curr = list_next_or_null_rcu(&(pi->bm_list), &(curr->bm_list), struct block_order_node, bm_list);
-            
-            if(!curr || (block->bm.tstamp_last < curr->bm.tstamp_last)){
-                list_add_rcu(&(block->bm_list), &(prev->bm_list));
-                break;
-            }
-        
-        }
-        brelse(bh);
-    }
 
     the_sb=sb;
     return 0;
 }
 
 //the function that kills the superblock, fir of all it just frees all the memory used in the
-//private info structure, including the RCU list
+//private info structure, including the RCU list, saving the ordered offsets in the superblock
 static void msgfs_kill_superblock(struct super_block *sb) {
 
     struct block_order_node *curr=NULL, *prev = NULL;
-    struct priv_info *pi = (struct priv_info *)sb->s_fs_info;
+    struct priv_info *pi;
+    struct srcu_struct *srcu;
+    struct buffer_head *bh;
+    struct msgfs_sb_info *the_sb;
     bool empty_list = true;
+    int nvalid_blocks = 0;
 
-    
+
+    pi = (struct priv_info *)sb->s_fs_info;
+    srcu = &pi->srcu;
+
+    bh = sb_bread(sb, 0);  
+    if(!bh){
+        brelse(bh);
+        printk(KERN_INFO "%s: Error with the bread\n",MODNAME);
+        return;
+    }
+    the_sb = (struct msgfs_sb_info *)bh->b_data;
+
     //for each element
     list_for_each_entry_rcu(curr, &(pi->bm_list), bm_list){
         //if we are at the first element, we just keep track of him
@@ -252,7 +223,8 @@ static void msgfs_kill_superblock(struct super_block *sb) {
         }
         //if we are not, we free the previous one
         else{
-           
+            the_sb->valid_blocks[nvalid_blocks] = prev->bm.offset;
+            nvalid_blocks++;
             kfree(prev);
             prev = curr;
         }
@@ -260,10 +232,19 @@ static void msgfs_kill_superblock(struct super_block *sb) {
     }
     //Note: if the list is empy we DON'T have to free anything (except for the structure itself)
     if(!empty_list){
-       
+        the_sb->valid_blocks[nvalid_blocks] = prev->bm.offset;
+        nvalid_blocks++;
         kfree(prev);
     }
-   
+    the_sb->n_valid_blocks = nvalid_blocks;
+    mark_buffer_dirty(bh);
+    sync_dirty_buffer(bh);
+    
+    //srcu cleanup phase
+    stop_rcu = 1;
+    synchronize_rcu();
+    synchronize_srcu(srcu);
+    cleanup_srcu_struct(srcu);
     kfree(sb->s_fs_info);
     
     if(unlikely(!__sync_bool_compare_and_swap(&mounted, true, false))){
@@ -273,6 +254,7 @@ static void msgfs_kill_superblock(struct super_block *sb) {
     kill_block_super(sb);
 
     printk(KERN_INFO "%s: filesystem unmount succesful.\n",MODNAME);
+    brelse(bh);
     return;
 }
 
