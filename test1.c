@@ -17,7 +17,7 @@
 int main() {
     int choice;
     //only to test values > than the max allowed message size
-    char *message;
+    char message[MAX_MESSAGE_SIZE];
     int offset, size;
     int result;
 
@@ -31,10 +31,9 @@ int main() {
 
         switch (choice) {
             case 1:
-                message = (char *)malloc(MAX_MESSAGE_SIZE);
+                memset(message, 0, sizeof(message));
                 printf("Please insert the message: ");
-                scanf(" %s", message);
-
+                scanf(" %[^\n]", message);              
                 size = strlen(message);
                 printf("message len: %d\n", size);
 
@@ -47,7 +46,7 @@ int main() {
                 }
                 fflush(stdout);
 
-                free(message);
+                
                 break;
 
             case 2:
@@ -57,7 +56,7 @@ int main() {
                 printf("Tell me the size: ");
                 scanf("%d", &size);
 
-                message = calloc(1, size);
+                memset(message, 0, sizeof(message));
 
                 result = syscall(READ_SYSCALL_NUM, offset, message, size);
                 if(result<0){
@@ -69,7 +68,7 @@ int main() {
                 }
                 fflush(stdout);
 
-                free(message);
+                
 
                 break;
 
