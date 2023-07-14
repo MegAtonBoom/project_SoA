@@ -5,6 +5,7 @@
 #ifndef MSG_K 
 	#define MSG_K
 
+	#include <linux/srcu.h>
 	#include "msgfilefs.h"
 
 	#define HACKED_ENTRIES 3
@@ -25,19 +26,12 @@
 		loff_t file_size;
 		unsigned int inv_bitmask [ MASK_SIZE ];
 		struct mutex write_mt;
-		//struct block_order_node * list;		//with rcu, probably useless
 		struct list_head bm_list;
+		struct srcu_struct srcu;
 	};
 
-	/*
-	struct s_priv_info{
-		time64_t timestamp;
-		int offset;
-	}*/
-
-	//with rcu, probably useless
 	struct block_order_node {
-		block_metadata bm;
+		rcu_metadata bm;
 		struct list_head bm_list;
 	};
 
@@ -68,6 +62,9 @@
 	extern int max_nblocks;
 	extern int datablocks;
 
+	//used to correctly do the cleanup of the srcu, as documented at lwn.net/Articles/202847/
+	extern int stop_rcu;
+
 
 	//added bitmask to improve the invalid block selection
 	extern unsigned int inv_bitmask[];
@@ -76,5 +73,7 @@
 	extern int setBit(unsigned int [], int , bool );
 	extern int getBit(unsigned int [], int );
 	extern int getInvBit(unsigned int []);
+	extern void concatenate_bytes(char *, size_t, char *, size_t);
+
 
 #endif
