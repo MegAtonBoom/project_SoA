@@ -8,11 +8,16 @@
 	#include <linux/fs.h>
 
 
-
-	
+	#ifndef MAXBLOCKS
+		#define MAXBLOCKS 1017
+	#endif
+	#if MAXBLOCKS > 1017
+		MAXBLOCKS = 1017
+	#endif
 
 	#define MAGIC 0xffff4444
 	#define DEFAULT_BLOCK_SIZE 4096
+	#define TRUE_MAX_BLOCKS 1017
 	#define MSGFS_FILE_INODE_NUMBER 1
 
 	#define FILENAME_LEN 8
@@ -27,21 +32,13 @@
 	#define MSGBUF_SIZE ((DEFAULT_BLOCK_SIZE)-sizeof(block_metadata))
 
 
-	#define INVALIDATE(x) x->bm.invalid=true; 
-	#define VALIDATE(x) x->bm.invalid=false;
-
 	#define INITIALIZE(x) \
-	INVALIDATE(x) \
 	x->bm.msg_size=0; \
-	x->bm.tstamp_last=0;\
 	memset(x->usrdata, 0, MSGBUF_SIZE);
 
 	//inode definition
 	struct __attribute__((packed)) msgfs_inode {
-		//mode_t mode;//not exploited
 		uint64_t inode_no;
-		//uint64_t data_block_number;//not exploited
-
 		union {
 			uint64_t file_size;
 			uint64_t dir_children_count;
@@ -61,20 +58,20 @@
 		uint64_t version;
 		uint64_t magic;
 		uint64_t block_size;
-		//uint64_t nblocks;
-		//uint64_t inodes_count;//not exploited
-		//uint64_t free_blocks;//not exploited
 
-		//padding to fit into a single block
-		char padding[ (DEFAULT_BLOCK_SIZE) - (3 * sizeof(uint64_t))];
+		//stuff related to metadata memorization
+		int n_valid_blocks;
+		int valid_blocks[ TRUE_MAX_BLOCKS ];
 	};
+
+	typedef struct msgfs_rcu_data {
+		int offset;
+		unsigned long tstamp_last;
+	} rcu_metadata;
 
 	typedef struct msgfs_metadata {
 		int offset;
-		unsigned long tstamp_last;  //timestamp of the last modify (write or invalidate)
-		bool invalid;	
 		int msg_size;
-
 	} block_metadata;
 
 
@@ -83,13 +80,6 @@
 		block_metadata bm;
 		char usrdata[MSGBUF_SIZE];
 	} data_block;
-
-
-
-
-
-
-
 
 
 #endif
