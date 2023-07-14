@@ -21,7 +21,7 @@
 
 int main(int argc, char *argv[])
 {
-	int fd, nbytes;
+	int fd, nbytes, i;
     uint64_t size;
 	ssize_t ret;
 	struct msgfs_sb_info sb;
@@ -51,7 +51,8 @@ int main(int argc, char *argv[])
 	sb.version = 1;//file system version
 	sb.magic = MAGIC;
     sb.block_size = DEFAULT_BLOCK_SIZE;
-
+	sb.n_valid_blocks = 0;
+	memset(sb.valid_blocks, 0, sizeof(sb.valid_blocks));
 	ret = write(fd, (char *)&sb, sizeof(sb));
 
 	if (ret != DEFAULT_BLOCK_SIZE) {
@@ -78,11 +79,9 @@ int main(int argc, char *argv[])
 	
     INITIALIZE(bd)
 
-	//for each datablock we write his offset as a metadata and mark it as invalid
-    for(int i=2; i<size; i++){
-		fflush(stdout);
+	//for each datablock we write his offset as a metadata 
+    for(i=2; i<size; i++){
         bd->bm.offset=i;
-		fflush(stdout);
         ret = write(fd, (char *)bd, sizeof(data_block));
         if (ret != DEFAULT_BLOCK_SIZE) {
 			printf("The file block numer %d was not written properly.\n", i);
