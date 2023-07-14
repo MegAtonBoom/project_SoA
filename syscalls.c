@@ -71,7 +71,6 @@ asmlinkage int sys_put_data(char * source, size_t size){
 
     CHECK_SIZE(true);
     
-
     node = (struct block_order_node *)kmalloc(sizeof(struct block_order_node), GFP_KERNEL);
     if((offset=getInvBit(pi->inv_bitmask))==ERROR){
         kfree(node);
@@ -90,20 +89,17 @@ asmlinkage int sys_put_data(char * source, size_t size){
         kfree(msg);
         return -ENOMEM;
     };
-
-    real_offset = offset + 2;
+    real_offset = offset + 2; 
     bh = sb_bread(the_sb, real_offset);
-    db = (data_block *)bh->b_data;
+    db = (data_block *)bh->b_data; 
     mutex_lock(&(pi->write_mt));
-
     ktime_get_real_ts64(&time);
     db->bm.offset = real_offset;
-    db->bm.invalid = false;
     db->bm.msg_size = size;
-    db->bm.tstamp_last = (unsigned int)time.tv_sec;
-    strncat(db->usrdata ,msg, size);
+    concatenate_bytes(db->usrdata, size, msg, size);
     db->usrdata[size+1]='\0';
-    node->bm = db->bm;
+    node->bm.offset = db->bm.offset;
+    node->bm.tstamp_last = (unsigned int)time.tv_sec;
     list_add_tail_rcu(&(node->bm_list), &(pi->bm_list));
     mutex_unlock(&pi->write_mt);
 
@@ -180,17 +176,31 @@ asmlinkage int sys_invalidate_data(int offset){
 #endif
 
     struct block_order_node *curr; 
-    struct priv_info *pi = the_sb->s_fs_info;
+    struct priv_info *pi;
+    struct srcu_struct *srcu;
     struct buffer_head *bh;
     data_block *db;
     bool changed = false;
     int real_offset;
+    int read_lock_idx;
 
     CHECK_MOUNTED;
     CHECK_OFFSET;
 
+    pi = the_sb->s_fs_info;
+    srcu = &pi->srcu; 
     real_offset = offset + 2;
+
+    //init srcu read locking phase
     rcu_read_lock();
+    if(stop_rcu){
+        rcu_read_unlock();
+        printk(KERN_INFO "%s: The device is already unmounting and the list has to be freed: can't invalidate now\n",MODNAME);
+        return -EIO;
+    }
+    read_lock_idx = srcu_read_lock(srcu);
+    rcu_read_unlock();
+    //srcu read locking phase ended
 
     //looking for the requested block in the sb private list of current valid blocks
     list_for_each_entry_rcu(curr, (&pi->bm_list), bm_list){
@@ -202,7 +212,7 @@ asmlinkage int sys_invalidate_data(int offset){
             break;
         }
     }
-    rcu_read_unlock();
+    srcu_read_unlock(srcu, read_lock_idx);
 
     //return ENODATA if we couldn't find the requested block
     if(!changed){ 
@@ -210,7 +220,7 @@ asmlinkage int sys_invalidate_data(int offset){
     }
     
     //needed for the read VFS file operation
-    synchronize_rcu();
+    synchronize_srcu(srcu);
     kfree(curr);
 
     
@@ -239,7 +249,9 @@ long sys_invalidate_data = (unsigned long)__x64_sys_invalidate_data;
 
 
 int hack_syscall_table(){
+
     int ret=0;
+    int i;
 
     new_sys_call_array[0] = (unsigned long)sys_put_data;
     new_sys_call_array[1] = (unsigned long)sys_get_data;
@@ -252,7 +264,7 @@ int hack_syscall_table(){
     }
 
     unprotect_memory();
-    for(int i=0;i<HACKED_ENTRIES;i++){
+    for(i=0;i<HACKED_ENTRIES;i++){
             ((unsigned long *)the_syscall_table)[restore[i]] = (unsigned long)new_sys_call_array[i];
     }
     protect_memory();
@@ -264,7 +276,7 @@ void unhack_syscall_table(){
     int i;
     
     unprotect_memory();
-    for(i=0;i<HACKED_ENTRIES;i++){
+    for(i=0;i<HACKED_ENTRIES;i++){ 
             ((unsigned long *)the_syscall_table)[restore[i]] = the_ni_syscall;
     }
     protect_memory();
