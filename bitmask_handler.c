@@ -33,12 +33,12 @@ int setBit(unsigned int bitmask[], int pos, bool value){
 
 }
 
-//just init with all 0s
+//just init with all 1s
 void initBit(unsigned int bitmask[]){
 
     int i;
     for(i=0; i< MASK_SIZE; i++){
-        bitmask[i] = 0;
+        bitmask[i] = 0xffffffff;
     }
     
 }
@@ -65,7 +65,6 @@ int getInvBit(unsigned int bitmask[]){
     int i, position, target = -1;
     unsigned int cpy;
     unsigned int mask = 1 << (INT_BIT_SIZE -1);
-
     mutex_lock(&bm_mutex);
     for (i = 0; i < MASK_SIZE; i++) {
         if (bitmask[i] != 0) {
