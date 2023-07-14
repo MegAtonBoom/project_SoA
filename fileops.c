@@ -49,6 +49,23 @@
 #include "msgfilefs_kernel.h"
 
 
+void concatenate_bytes(char* destination, size_t destSize, char* source, size_t sourceSize){
+
+    size_t i;
+    size_t destIdx = 0;
+    for(i=0; i < sourceSize && destIdx < destSize; i++){
+        destination[destIdx] = source[i];
+        destIdx ++;
+    }
+
+    if(destIdx < destSize){
+        destination[destIdx] = '\n';
+    }
+
+
+}
+
+
 ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t * off) {
     
     struct buffer_head *bh = NULL;
@@ -57,6 +74,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     loff_t current_pos; 
     struct super_block *sb;
     struct priv_info *pi;
+    struct srcu_struct *srcu;
 
     struct block_order_node *actual_block;
 
@@ -67,12 +85,17 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
     char *out;  
     char *tmp;
+
+    int read_lock_idx;
+    int outPos;
+    int i;
     
     //we get the timestamp of the last read block
     current_ts = (*(unsigned long *)filp->private_data);
 
     sb = filp->f_path.dentry->d_inode->i_sb;
     pi = (struct priv_info *)sb->s_fs_info; 
+    srcu = &pi->srcu;
     file_size = (pi->file_size + 2) * DEFAULT_BLOCK_SIZE;
 
     //blen = tmp container of the remaining bytes to read
@@ -87,14 +110,23 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     if(len<1){
         return 0;
     }
-
-    out = (char *)kzalloc(len+1 * sizeof(char), GFP_KERNEL);
+    out = (char *)kzalloc(len * sizeof(char), GFP_KERNEL);
+    outPos = 0;
     if(!out){ 
         printk(KERN_INFO "%s: Error allocating memory\n",MODNAME); 
         return -EIO;
     }
 
+    //init srcu read locking phase
     rcu_read_lock();
+    if(stop_rcu){
+        rcu_read_unlock();
+        printk(KERN_INFO "%s: The device is already unmounting and the list has to be freed: can't read now\n",MODNAME);
+        return -EIO;
+    }
+    read_lock_idx = srcu_read_lock(srcu);
+    rcu_read_unlock();
+    //srcu read locking phase ended
 
     //we need the last block we read, ot he next in chronological order
     list_for_each_entry_rcu(actual_block, (&pi->bm_list), bm_list){
@@ -105,7 +137,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     }
     //just leave the rcu read block and quit returning 0, if we can't find that block
     if(!found){
-        rcu_read_unlock();
+        srcu_read_unlock(srcu, read_lock_idx);
         kfree(out);
         return 0;
     }
@@ -119,26 +151,25 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     }
     
     //we look block after block to concat the requested msg size
-    for( int i=0; i<MAXBLOCKS; i++ ){ 
+    for(i=0; i<MAXBLOCKS; i++ ){ 
 
-        //current offset inside the msg buffer inside the block, according to the current offset   
+        //current position inside the msg buffer inside the block, according to the current offset   
         current_pos = (*off - sizeof(block_metadata)) % DEFAULT_BLOCK_SIZE;
         bh = (struct buffer_head *)sb_bread(sb, actual_block->bm.offset);
         if(!bh){
-            rcu_read_unlock();
+            srcu_read_unlock(srcu, read_lock_idx);
             kfree(out);
             printk(KERN_INFO "%s: Error with the bread\n",MODNAME);
             return -EIO;
         }
         current_db=(data_block *)bh->b_data;
         tmp = &(current_db->usrdata[current_pos]);
+
         //We made to the last block we need to read
-        if((actual_block->bm.msg_size - current_pos ) > blen -1){
+        if((current_db->bm.msg_size - current_pos ) > blen -1){
             
-            
-            rcu_read_unlock();
-            strncat(out, tmp, blen-1);
-            strncat(out, "\n", 1);
+            srcu_read_unlock(srcu, read_lock_idx);
+            concatenate_bytes(out + outPos, (len)-outPos, tmp, blen-1);
             ret = copy_to_user(buf, out, len);
             *off += blen-1;
             *(unsigned long *)(filp->private_data) = actual_block->bm.tstamp_last;
@@ -147,18 +178,18 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         }
         //the current block is not enough to fill the buffer
         else{
-            strncat(out, tmp, (actual_block->bm.msg_size - current_pos));
-            strncat(out, "\n", 1);
-            size += (actual_block->bm.msg_size - current_pos) +1;
-            blen -= (actual_block->bm.msg_size - current_pos) +1;
+            concatenate_bytes(out + outPos, (len)- outPos, tmp, (current_db->bm.msg_size - current_pos));
+            outPos = outPos + (current_db->bm.msg_size - current_pos) + 1;
+            size += (current_db->bm.msg_size - current_pos) +1;
+            blen -= (current_db->bm.msg_size - current_pos) +1;
             actual_block = list_next_or_null_rcu(&(pi->bm_list), &(actual_block->bm_list), struct block_order_node, bm_list);
             
             //We reached the last block and we can't fill entirely the buffer, so we return what we
             //have read so far
             if(!actual_block){
 
+                srcu_read_unlock(srcu, read_lock_idx);
                 //update *offset properly
-                rcu_read_unlock();
                 *off = file_size + 1;               
                 ret = copy_to_user(buf, out, size);
                 kfree(out);
@@ -183,7 +214,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
 
 //nothing special, only some initialization
-int msgfilesfs_open(struct inode *inode, struct file *file) {
+int msgfilesfs_open(struct inode *inode, struct file *file) { 
     
     struct super_block *sb = file->f_path.dentry->d_inode->i_sb;
     struct priv_info *pi= sb->s_fs_info;
