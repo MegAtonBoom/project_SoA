@@ -174,6 +174,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
             *off += blen-1;
             *(unsigned long *)(filp->private_data) = actual_block->bm.tstamp_last;
             kfree(out);
+	    brelse(bh);
             return (len - ret);
         }
         //the current block is not enough to fill the buffer
@@ -193,6 +194,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
                 *off = file_size + 1;               
                 ret = copy_to_user(buf, out, size);
                 kfree(out);
+		brelse(bh);
                 return ( size - ret );
             }
             //we didn't fill the buffer but we can read the next ordered block
@@ -208,6 +210,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     //We shouldn't reach this point!
     printk(KERN_INFO "%s: There was a bug in the read, returning 0\n", MODNAME);
     kfree(out);
+    brelse(bh);
     return 0;        
 }
 
