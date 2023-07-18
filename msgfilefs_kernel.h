@@ -73,7 +73,7 @@
 	extern int setBit(unsigned int [], int , bool );
 	extern int getBit(unsigned int [], int );
 	extern int getInvBit(unsigned int []);
-	extern void concatenate_bytes(char *, size_t, char *, size_t);
+	extern void concatenate_bytes(char *, size_t, char *, size_t, bool);
 
 
 #endif
