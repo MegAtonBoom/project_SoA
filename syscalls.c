@@ -61,7 +61,6 @@ asmlinkage int sys_put_data(char * source, size_t size){
 
     int offset, real_offset;
     struct buffer_head *bh ;
-    struct timespec64 time;
     struct block_order_node *node;
     struct priv_info *pi = (struct priv_info *)the_sb->s_fs_info;
     data_block *db;
@@ -92,13 +91,13 @@ asmlinkage int sys_put_data(char * source, size_t size){
     bh = sb_bread(the_sb, real_offset);
     db = (data_block *)bh->b_data; 
     mutex_lock(&(pi->write_mt));
-    ktime_get_real_ts64(&time);
     db->bm.offset = real_offset;
     db->bm.msg_size = size;
     concatenate_bytes(db->usrdata, size, msg, size, false);
     db->usrdata[size+1]='\0';
     node->bm.offset = db->bm.offset;
-    node->bm.tstamp_last = (unsigned int)time.tv_sec;
+    node->bm.tstamp_last = l_timestamp;
+    l_timestamp++;
     list_add_tail_rcu(&(node->bm_list), &(pi->bm_list));
     mutex_unlock(&pi->write_mt);
 
