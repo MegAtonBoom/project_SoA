@@ -37,6 +37,8 @@ int datablocks;
 
 int stop_rcu;
 
+unsigned long l_timestamp;
+
 struct super_block *the_sb;
 
 //for simplicity we assume our device can be mounted only once
@@ -67,7 +69,7 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
     struct block_order_node * block=NULL;
     struct msgfs_inode *my_inode;
     int i;
-    
+    l_timestamp = 0;
     stop_rcu = 0;
     //Unique identifier of the filesystem
     sb->s_magic = MAGIC;
@@ -111,6 +113,8 @@ int msgfs_fill_super(struct super_block *sb, void *data, int silent) {
         list_add_tail_rcu(&(block->bm_list), &(pi->bm_list));
     }
     brelse(bh);
+
+    l_timestamp = i;
 
     //check on the expected magic number
     if(magic != sb->s_magic){
