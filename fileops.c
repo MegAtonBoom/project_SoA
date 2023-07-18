@@ -19,10 +19,9 @@
  *            Using RCU mechanisms and syncronization, we can't have someone overwriting the device 
  *            (file) content while a single read call has to access to more than one block.
  *            
- *            N.B.1: The actual buffer the read will return will contain a \n for each piece of
+ *            N.B.1: The actual buffer the read will return will contain a \n for each 
  *            block read. That means that, in the previous example, it will return the first 10 bytes
- *            of the first block, then a \n, then the first 3 bytes of the second block and then 
- *            another \n.
+ *            of the first block, then a \n, then the first 4 bytes of the second block.
  *
  *            N.B.2: A second read call on the same session, instead, if the current block has been
  *            invalidated in the meanwhile, will start the reading from the next valid block in 
@@ -49,7 +48,7 @@
 #include "msgfilefs_kernel.h"
 
 
-void concatenate_bytes(char* destination, size_t destSize, char* source, size_t sourceSize){
+void concatenate_bytes(char* destination, size_t destSize, char* source, size_t sourceSize, bool endLine){
 
     size_t i;
     size_t destIdx = 0;
@@ -58,7 +57,7 @@ void concatenate_bytes(char* destination, size_t destSize, char* source, size_t 
         destIdx ++;
     }
 
-    if(destIdx < destSize){
+    if(destIdx < destSize && endLine){
         destination[destIdx] = '\n';
     }
 
@@ -166,39 +165,43 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         tmp = &(current_db->usrdata[current_pos]);
 
         //We made to the last block we need to read
-        if((current_db->bm.msg_size - current_pos ) > blen -1){
+        if((current_db->bm.msg_size - current_pos ) >= blen){
             
             srcu_read_unlock(srcu, read_lock_idx);
-            concatenate_bytes(out + outPos, (len)-outPos, tmp, blen-1);
+            concatenate_bytes(out + outPos, (len)-outPos, tmp, blen, false);
             ret = copy_to_user(buf, out, len);
-            *off += blen-1;
+            *off += blen;
             *(unsigned long *)(filp->private_data) = actual_block->bm.tstamp_last;
             kfree(out);
-	    brelse(bh);
+            brelse(bh);
             return (len - ret);
         }
         //the current block is not enough to fill the buffer
         else{
-            concatenate_bytes(out + outPos, (len)- outPos, tmp, (current_db->bm.msg_size - current_pos));
-            outPos = outPos + (current_db->bm.msg_size - current_pos) + 1;
-            size += (current_db->bm.msg_size - current_pos) +1;
-            blen -= (current_db->bm.msg_size - current_pos) +1;
             actual_block = list_next_or_null_rcu(&(pi->bm_list), &(actual_block->bm_list), struct block_order_node, bm_list);
+            
             
             //We reached the last block and we can't fill entirely the buffer, so we return what we
             //have read so far
             if(!actual_block){
-
+                concatenate_bytes(out + outPos, (len)- outPos, tmp, (current_db->bm.msg_size - current_pos), false);
+                //outPos = outPos + (current_db->bm.msg_size - current_pos) ;
+                size += (current_db->bm.msg_size - current_pos);
+                //blen -= (current_db->bm.msg_size - current_pos);
                 srcu_read_unlock(srcu, read_lock_idx);
                 //update *offset properly
                 *off = file_size + 1;               
                 ret = copy_to_user(buf, out, size);
                 kfree(out);
-		brelse(bh);
+                brelse(bh);
                 return ( size - ret );
             }
             //we didn't fill the buffer but we can read the next ordered block
             else{
+                concatenate_bytes(out + outPos, (len)- outPos, tmp, (current_db->bm.msg_size - current_pos), true);
+                outPos = outPos + (current_db->bm.msg_size - current_pos) + 1;
+                size += (current_db->bm.msg_size - current_pos) +1;
+                blen -= (current_db->bm.msg_size - current_pos) +1;
                 *off = ((actual_block->bm.offset * DEFAULT_BLOCK_SIZE) + sizeof(block_metadata));
                 *(unsigned long *)(filp->private_data) = actual_block->bm.tstamp_last;
 
