@@ -65,6 +65,9 @@
 	//used to correctly do the cleanup of the srcu, as documented at lwn.net/Articles/202847/
 	extern int stop_rcu;
 
+	//logic clock used to order messages
+	extern unsigned long l_timestamp;
+
 
 	//added bitmask to improve the invalid block selection
 	extern unsigned int inv_bitmask[];
