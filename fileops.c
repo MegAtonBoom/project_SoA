@@ -185,9 +185,7 @@ ssize_t msgfilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
             //have read so far
             if(!actual_block){
                 concatenate_bytes(out + outPos, (len)- outPos, tmp, (current_db->bm.msg_size - current_pos), false);
-                //outPos = outPos + (current_db->bm.msg_size - current_pos) ;
                 size += (current_db->bm.msg_size - current_pos);
-                //blen -= (current_db->bm.msg_size - current_pos);
                 srcu_read_unlock(srcu, read_lock_idx);
                 //update *offset properly
                 *off = file_size + 1;               
