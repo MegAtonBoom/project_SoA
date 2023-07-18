@@ -85,7 +85,6 @@ asmlinkage int sys_put_data(char * source, size_t size){
     //The message has to be copied all in once: if we can't, we chand everything back and return error
     if(copy_from_user(msg, source, size)){
         setBit(pi->inv_bitmask, offset, true);
-        brelse(bh);
         kfree(msg);
         return -ENOMEM;
     };
@@ -96,7 +95,7 @@ asmlinkage int sys_put_data(char * source, size_t size){
     ktime_get_real_ts64(&time);
     db->bm.offset = real_offset;
     db->bm.msg_size = size;
-    concatenate_bytes(db->usrdata, size, msg, size);
+    concatenate_bytes(db->usrdata, size, msg, size, false);
     db->usrdata[size+1]='\0';
     node->bm.offset = db->bm.offset;
     node->bm.tstamp_last = (unsigned int)time.tv_sec;
